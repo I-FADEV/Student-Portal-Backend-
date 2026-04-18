@@ -7,3 +7,4 @@ const generateToken = (userId, role) => {
 };
 
 module.exports = generateToken;
+

@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const studentSchema = new mongoose.Schema(
@@ -14,10 +15,6 @@ const studentSchema = new mongoose.Schema(
     role: {
       type: String,
       default: "student",
-    },
-    email: {
-      type: String,
-      default: null,
     },
     department: {
       type: String,

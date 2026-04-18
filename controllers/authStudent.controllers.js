@@ -1,8 +1,10 @@
+
 const bcrypt = require("bcryptjs");
 const generateToken = require("../utils/generateToken");
 const User = require("../models/student.model");
 const jwt = require("jsonwebtoken");
 const logAction = require("../utils/logAction");
+const Finance = require("../models/Finance");
 
 // Register
 const register = async (req, res, next) => {
@@ -127,9 +129,55 @@ const idcard = async(req, res, next) => {
   }
 }
 
+courses = async (req, res) => {
+  try {
+    const { id, department, level } = req.user; // from verified JWT
+
+    
+
+    await logAction({
+      studentId: id,
+      action: 'VIEW_COURSES',
+      details: { department, level }, //REMOVE ALL AND COMENT OUT THE LOG ACTION
+    });
+
+    res.json({ success: true, courses });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+finance = async (req, res, next) => {
+  try {
+    const studentId = req.user.userId;
+
+    const record = await finance.findOne({
+      student: studentId,
+      session: currentSession,
+    });
+
+    await logAction({
+      studentId,
+      action: 'VIEW_FINANCE',
+      details: { session: currentSession }, //SAME 
+    });
+
+    // valid-null
+    res.status(201).json({ success: true, record: record || null });
+
+  } catch (error) {
+    next()
+  }
+};
+
+
 module.exports = {
   register,
   login,
   refresh,
   profile,
+  courses,
+  finance,
 };
