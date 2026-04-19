@@ -3,6 +3,8 @@ const generateToken = require("../utils/generateToken");
 const User = require("../models/student.model");
 const jwt = require("jsonwebtoken");
 const logAction = require("../utils/logAction");
+const Idcard = require("../models/idcard.model");
+const recalculateFinance = require("../utils/financeRecalculator");
 
 // Register
 const register = async (req, res, next) => {
@@ -100,28 +102,42 @@ const profile = async (req, res, next) => {
   }
 };
 
-const idcard = async (req, res, next) => {
+const createIdcard = async (req, res, next) => {
   try {
+    const { nameOnCard, matricOnCard, departmentOnCard, levelOnCard } =
+      req.body;
+
     if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!req.file) {
       res.status(400).json({ error: "Please upload an image file" });
+    }
+
+    // prevent duplicate ID card
+    const existing = await Idcard.findOne({ user: req.user.userId });
+    if (existing) {
+      return res.status(400).json({ error: "ID card already exists" });
     }
 
     // build the URL path to the saved file
     const photoURLPath = `/uploads/${req.file.filename}`;
 
-    // save the path to the logged-in user's record
-    const user = await User.findByIdAndUpdate(
-      req.user.userId,
-      { photoURL: photoURLPath },
-      { returnDocument: "after" },
-    ).select("-password");
+    const idcard = await Idcard.create({
+      user: req.user.userId,
+      photoURL: photoURLPath,
+      nameOnCard,
+      matricOnCard,
+      departmentOnCard,
+      levelOnCard,
+    });
 
-    await user.save();
+    // await logAction({});
 
-    res.status(200).json({
-      message: "Avatar uploaded successfully",
-      avatar: photoURLPath,
-      user,
+    res.status(201).json({
+      message: "ID card created successfully",
+      data: idcard,
     });
   } catch (error) {
     next(error);
@@ -130,11 +146,101 @@ const idcard = async (req, res, next) => {
 
 const timetable = async (req, res, next) => {};
 
+const courses = async (req, res, next) => {
+  try {
+    const { userId, department, level } = req.user;
+
+    //await logAction({});
+
+    res.json({ success: true, courses });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createFinance = async (req, res, next) => {
+  try {
+    const { session, semester, items } = req.body;
+
+    const existing = await Finance.findOne({
+      student: req.user.userId,
+      session,
+      semester,
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: "Finance already exists" });
+    }
+
+    const finance = new Finance({
+      student: req.user.userId,
+      session,
+      semester,
+      items,
+    });
+
+    //calculate BEFORE saving
+    recalculateFinance(finance);
+
+    await finance.save();
+
+    //await logAction({})
+
+    res.status(201).json({ data: finance });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const payFinance = async (req, res, next) => {
+  try {
+    const { itemLabel, amount } = req.body;
+
+    const finance = await Finance.findById(req.params.id);
+
+    if (!finance) {
+      return res.status(404).json({ error: "Finance not found" });
+    }
+
+    const item = finance.items.find((i) => i.label === itemLabel);
+
+    if (!item) {
+      return res.status(400).json({ error: "Item not found" });
+    }
+
+    // prevent overpayment
+    if (item.paidAmount + amount > item.amount) {
+      return res.status(400).json({ error: "Payment exceeds required amount" });
+    }
+
+    item.paidAmount += amount;
+
+    //ALWAYS recalculate after change
+    recalculateFinance(finance);
+
+    await finance.save();
+
+    // await logAction({})
+
+    //sync ID card
+    const isPaid = finance.paymentStatus === "Paid";
+
+    await Idcard.findOneAndUpdate(
+      { user: finance.student },
+      { paidStatus: isPaid ? "Paid" : "Unpaid" },
+    );
+
+    res.json({ data: finance });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   refresh,
   profile,
-  idcard,
+  createIdcard,
   timetable,
 };

@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const studentSchema = new mongoose.Schema(
   {
-    matric_number: {
+    matricNumber: {
       type: String,
       required: true,
       unique: true,
