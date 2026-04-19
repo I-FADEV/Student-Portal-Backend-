@@ -20,8 +20,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use("/auth/Admin", authAdminRoutes);
-app.use("/auth/Student", authStudentRoutes);
+app.use("/auth/admin", authAdminRoutes);
+app.use("/auth/student", authStudentRoutes);
 
 // Test route
 app.get("/", (req, res) => {

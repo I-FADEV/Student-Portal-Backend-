@@ -100,36 +100,41 @@ const profile = async (req, res, next) => {
   }
 };
 
-const idcard = async(req, res, next) => {
-  try{
-    
-  if (!req.user) {
+const idcard = async (req, res, next) => {
+  try {
+    if (!req.user) {
       res.status(400).json({ error: "Please upload an image file" });
     }
 
     // build the URL path to the saved file
-    const avatarPath = `/uploads/${req.file.filename}`;
+    const photoURLPath = `/uploads/${req.file.filename}`;
 
     // save the path to the logged-in user's record
     const user = await User.findByIdAndUpdate(
       req.user.userId,
-      { avatar: avatarPath },
+      { photoURL: photoURLPath },
       { returnDocument: "after" },
     ).select("-password");
 
+    await user.save();
+
     res.status(200).json({
       message: "Avatar uploaded successfully",
-      avatar: avatarPath,
+      avatar: photoURLPath,
       user,
     });
-  }catch(erro){
-    next(error)
+  } catch (error) {
+    next(error);
   }
-}
+};
+
+const timetable = async (req, res, next) => {};
 
 module.exports = {
   register,
   login,
   refresh,
   profile,
+  idcard,
+  timetable,
 };
