@@ -1,6 +1,6 @@
- const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
- const adminLogSchema = new mongoose.Schema(
+const auditLogSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -33,7 +33,7 @@
     metadata: Object,
     ipAddress: String,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-module.exports = mongoose.model("AdminLog", adminLogSchema);
+module.exports = mongoose.model("AuditLog", auditLogSchema);

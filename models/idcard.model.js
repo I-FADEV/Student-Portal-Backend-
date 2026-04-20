@@ -2,11 +2,10 @@ const mongoose = require("mongoose");
 
 const idCardSchema = new mongoose.Schema(
   {
-    user: {
+    student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Student",
       required: true,
-      unique: true, // ensures 1 student = 1 ID card
     },
     photoURL: {
       type: String,
@@ -33,7 +32,7 @@ const idCardSchema = new mongoose.Schema(
     },
 
     levelOnCard: {
-      type: String,
+      type: Number,
       required: true,
     },
 
@@ -57,4 +56,5 @@ const idCardSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+idCardSchema.index({ student: 1, sessionOnCard: 1 }, { unique: true });
 module.exports = mongoose.model("IdCard", idCardSchema);

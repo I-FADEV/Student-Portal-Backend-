@@ -3,9 +3,8 @@ const cors = require("cors");
 const app = express();
 require("dotenv").config();
 const connectDB = require("./config/db");
-const authAdminRoutes = require("./routes/authAdmin.Routes");
-const authStudentRoutes = require("./routes/authStudent.Routes");
-const errorHandler = require("./middleware/errorMiddleware");
+const authRoutes = require("./routes/auth.routes");
+const errorHandler = require("./middleware/error.middleware");
 connectDB();
 
 // Middleware
@@ -20,8 +19,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use("/auth/admin", authAdminRoutes);
-app.use("/auth/student", authStudentRoutes);
+app.use("/auth/", authRoutes);
 
 // Test route
 app.get("/", (req, res) => {

@@ -24,7 +24,7 @@ const studentSchema = new mongoose.Schema(
       default: null,
     },
     level: {
-      type: String,
+      type: Number,
       default: null,
     },
     photoURL: {

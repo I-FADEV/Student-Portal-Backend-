@@ -75,6 +75,6 @@ const financeSchema = new mongoose.Schema(
 );
 
 //Prevent duplicate finance records per student/session/semester
-financeSchema.index({ student: 1, session: 1, semester: 1 }, { unique: true });
+financeSchema.index({ student: 1, session: 1 }, { unique: true });
 
 module.exports = mongoose.model("Finance", financeSchema);
