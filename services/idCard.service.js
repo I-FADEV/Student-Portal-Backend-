@@ -9,7 +9,7 @@ const studentIdCard = async ({
   sessionOnCard,
   user,
   file,
-  userId,
+  studentId,
   fileName,
 }) => {
   if (!user) {
@@ -25,16 +25,31 @@ const studentIdCard = async ({
   const normalizedDepartment = departmentOnCard.toUpperCase();
 
   // prevent duplicate ID card
-  const existing = await IdCard.findOne({ student: userId });
+  const existing = await IdCard.findOne({ student: studentId });
   if (existing) {
     throw new Error("ID card already exists");
+  }
+
+  // check if student has already paid for ID Card in their finance record
+  const financeRecord = await Finance.findOne({
+    student: studentId,
+    session: sessionOnCard,
+  });
+
+  let paidStatus = "Unpaid"; // default
+
+  if (financeRecord) {
+    const idCardItem = financeRecord.items.find((i) => i.label === "ID Card");
+    if (idCardItem && idCardItem.status === "Paid") {
+      paidStatus = "Paid"; // they already paid, reflect that
+    }
   }
 
   // build the URL path to the saved file
   const photoURLPath = `/uploads/${fileName}`;
 
   const idcard = await IdCard.create({
-    student: userId,
+    student: studentId,
     photoURL: photoURLPath,
     nameOnCard: normalizedName,
     matricOnCard: normalizedNumber,
@@ -48,4 +63,17 @@ const studentIdCard = async ({
   return { data: idcard };
 };
 
-module.exports = { studentIdCard };
+const viewStudentIdCard = async ({ session, studentId }) => {
+  const idCard = await IdCard.findOne({
+    student: studentId,
+    sessionOnCard: session,
+  });
+
+  if (!idCard) {
+    throw new Error("ID card not found for this student and session");
+  }
+
+  return { data: idCard };
+};
+
+module.exports = { studentIdCard, viewStudentIdCard };

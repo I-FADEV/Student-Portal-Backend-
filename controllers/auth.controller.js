@@ -9,11 +9,12 @@ const {
 const adminRegister = async (req, res, next) => {
   try {
     // 1. Pull data from request body
-    const { username, password } = req.body;
+    const { username, password, adminType } = req.body;
 
-    const { user, token, role } = await registerAdmin({
+    const { user, token, role, type } = await registerAdmin({
       username,
       password,
+      adminType,
     });
 
     // 5. Send back success (never send the password back)
@@ -23,6 +24,7 @@ const adminRegister = async (req, res, next) => {
       user,
       token,
       role,
+      type,
     });
   } catch (error) {
     next(error);

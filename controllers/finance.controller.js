@@ -1,19 +1,20 @@
 const {
   createFinanceService,
   payFinanceAndSyncIdCardService,
+  viewStudentFinance,
 } = require("../services/finance.service");
 
 const createFinance = async (req, res, next) => {
   try {
-    const { session, semester, items } = req.body;
+    const { session, semester, items, studentId } = req.body;
 
-    const userId = req.user.userId;
+    // const userId = req.user.userId;
 
     const { data } = await createFinanceService({
       session,
       semester,
       items,
-      userId,
+      studentId,
     });
 
     res.status(201).json({ data });
@@ -24,11 +25,10 @@ const createFinance = async (req, res, next) => {
 
 const payFinance = async (req, res, next) => {
   try {
-    const { itemLabel, amount } = req.body;
+    const { payments } = req.body;
 
     const { finance } = await payFinanceAndSyncIdCardService({
-      itemLabel,
-      amount,
+      payments,
       financeId: req.params.id,
     });
 
@@ -38,7 +38,24 @@ const payFinance = async (req, res, next) => {
   }
 };
 
+const viewFinance = async (req, res, next) => {
+  try {
+    const { session, semester } = req.query;
+
+    const { data } = await viewStudentFinance({
+      session,
+      semester,
+      studentId: req.user.userId,
+    });
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createFinance,
   payFinance,
+  viewFinance,
 };

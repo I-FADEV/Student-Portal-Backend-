@@ -5,7 +5,7 @@ const Student = require("../models/student.model");
 const jwt = require("jsonwebtoken");
 const logAction = require("../utils/logAction");
 
-const registerAdmin = async ({ username, password }) => {
+const registerAdmin = async ({ username, password, adminType }) => {
   // 2. Check if user already exists
   const existingUser = await Admin.findOne({ username });
   if (existingUser) {
@@ -21,17 +21,19 @@ const registerAdmin = async ({ username, password }) => {
     username,
     password: hashedPassword,
     role: "admin",
+    adminType,
   });
 
   // await logAction({});
 
   //  Create a JWT token
-  const token = generateToken(newUser._id, newUser.role);
+  const token = generateToken(newUser._id, newUser.role, newUser.adminType);
 
   return {
     user: { id: newUser._id, username: newUser.username },
     token,
     role: newUser.role,
+    type: newUser.adminType,
   };
 };
 
@@ -51,7 +53,7 @@ const loginAdmin = async ({ username, password }) => {
   // logAction({});
 
   // 4. Create a JWT token
-  const token = generateToken(user._id, user.role);
+  const token = generateToken(user._id, user.role, user.adminType);
 
   return { token };
 };

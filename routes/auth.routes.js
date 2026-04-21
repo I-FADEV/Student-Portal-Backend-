@@ -1,5 +1,14 @@
 const express = require("express");
 const router = express.Router();
+const validate = require("../middleware/validate.middleware");
+const protect = require("../middleware/auth.middleware");
+const roleCheck = require("../middleware/roleCheck.middleware");
+const {
+  adminRegisterSchema,
+  adminLoginSchema,
+  studentRegisterSchema,
+  studentLoginSchema,
+} = require("../validation/auth.validation");
 const {
   adminRegister,
   adminLogin,
@@ -9,14 +18,24 @@ const {
 } = require("../controllers/auth.controller");
 
 //admin
-router.post("/admin/register", adminRegister);
-router.post("/admin/login", adminLogin);
+router.post(
+  "/admin/register",
+  protect,
+  roleCheck(["admin"], ["general_admin"]),
+  validate(adminRegisterSchema),
+  adminRegister,
+);
+router.post("/admin/login", validate(adminLoginSchema), adminLogin);
 
 //both
 router.post("/refresh", refresh);
 
 //student
-router.post("/student/register", studentRegister);
-router.post("/student/login", studentLogin);
+router.post(
+  "/student/register",
+  validate(studentRegisterSchema),
+  studentRegister,
+);
+router.post("/student/login", validate(studentLoginSchema), studentLogin);
 
 module.exports = router;
