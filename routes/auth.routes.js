@@ -20,18 +20,13 @@ const {
 //admin
 router.post(
   "/admin/register",
+  validate(adminRegisterSchema),
   protect,
   roleCheck(["admin"], ["general_admin"]),
-  validate(adminRegisterSchema),
   adminRegister,
 );
 
-router.post(
-  "/admin/login",
-  roleCheck(["admin"]),
-  validate(adminLoginSchema),
-  adminLogin,
-);
+router.post("/admin/login", validate(adminLoginSchema), adminLogin);
 
 //both
 router.post("/refresh", refresh);

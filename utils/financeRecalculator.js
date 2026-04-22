@@ -15,7 +15,7 @@ const financeRecalculator = (finance) => {
     }
   });
 
-  finance.totalAmount = totalAmount;
+  finance.totalAmount = totalAmount + (finance.carriedOverBalance || 0); // ← include debt;
   finance.totalPaid = totalPaid;
   finance.outstandingBalance = totalAmount - totalPaid;
 

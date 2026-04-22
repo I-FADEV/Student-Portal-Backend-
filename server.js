@@ -25,7 +25,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 // apply strict limiter to auth routes only
-app.use("/auth/", authLimiter);
+app.use("/auth/admin/login", authLimiter);
+app.use("/auth/student/login", authLimiter);
 app.use("/auth/", authRoutes);
 app.use("/idcard/", idCardRoutes);
 app.use("/profile", profileRoutes);

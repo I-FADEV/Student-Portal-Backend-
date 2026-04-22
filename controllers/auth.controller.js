@@ -18,7 +18,6 @@ const adminRegister = async (req, res, next) => {
     });
 
     // 5. Send back success (never send the password back)
-    // Don't issue JWT yet — they must verify first
     res.status(201).json({
       message: "Account created successfully!",
       user,

@@ -4,12 +4,13 @@ const Admin = require("../models/admin.model");
 const Student = require("../models/student.model");
 const jwt = require("jsonwebtoken");
 const logAction = require("../utils/logAction");
+const AppError = require("../utils/appError");
 
 const registerAdmin = async ({ username, password, adminType }) => {
   // 2. Check if user already exists
   const existingUser = await Admin.findOne({ username });
   if (existingUser) {
-    throw new Error("Username already in use");
+    throw new AppError("Username already in use", 409);
   }
 
   // 3. Hash the password
@@ -41,13 +42,13 @@ const loginAdmin = async ({ username, password }) => {
   // 2. Find the user by username
   const user = await Admin.findOne({ username });
   if (!user) {
-    throw new Error("Invalid username or password");
+    throw new AppError("Invalid username or password", 400);
   }
 
   // 3. Compare the given password with the stored hash
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    throw new Error("Invalid username or password");
+    throw new AppError("Invalid username or password", 400);
   }
 
   // logAction({});
@@ -65,7 +66,7 @@ const registerStudent = async ({
   level,
 }) => {
   if (!matricNumber || !password || !department || !level) {
-    throw new Error("fill all required fields");
+    throw new AppError("fill all required fields", 400);
   }
 
   const normalizedMatric = matricNumber.toUpperCase();
@@ -73,7 +74,7 @@ const registerStudent = async ({
 
   const existingUser = await Student.findOne({ matricNumber });
   if (existingUser) {
-    throw new Error("Matric number already in use");
+    throw new AppError("Matric number already in use", 409);
   }
 
   const salt = await bcrypt.genSalt(10);
@@ -97,7 +98,7 @@ const registerStudent = async ({
       matricNumber: newUser.matricNumber,
       role: newUser.role,
       department: newUser.department,
-      level: newUser.department,
+      level: newUser.level,
     },
     token,
   };
@@ -106,12 +107,12 @@ const registerStudent = async ({
 const loginStudent = async ({ matricNumber, password }) => {
   const user = await Student.findOne({ matricNumber });
   if (!user) {
-    throw new Error("Invalid matric number or password");
+    throw new AppError("Invalid matric number or password", 400);
   }
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    throw new Error("Invalid matric number or password");
+    throw new AppError("Invalid matric number or password", 400);
   }
 
   // await logAction({});
@@ -123,7 +124,7 @@ const loginStudent = async ({ matricNumber, password }) => {
 
 const refreshToken = async ({ oldToken }) => {
   if (!oldToken) {
-    throw new Error("No token provided");
+    throw new AppError("No token provided,", 400);
   }
 
   try {
@@ -133,7 +134,7 @@ const refreshToken = async ({ oldToken }) => {
 
     return { token: newToken };
   } catch (err) {
-    throw new Error("Invalid or expired token");
+    throw new AppError("Invalid or expired token", 400);
   }
 };
 

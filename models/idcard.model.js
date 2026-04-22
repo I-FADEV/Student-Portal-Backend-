@@ -42,7 +42,6 @@ const idCardSchema = new mongoose.Schema(
 
     genderOnCard: {
       type: String,
-      required: true,
       enum: ["Male", "Female"],
       default: "Male",
     },

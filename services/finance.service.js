@@ -3,6 +3,7 @@ const Finance = require("../models/finance.model");
 const IdCard = require("../models/idCard.model");
 const recalculateFinance = require("../utils/financeRecalculator");
 const mongoose = require("mongoose");
+const AppError = require("../utils/AppError");
 
 const createFinanceService = async ({
   session,
@@ -17,14 +18,27 @@ const createFinanceService = async ({
   });
 
   if (existing) {
-    throw new Error("Finance Record already exists");
+    throw new AppError("Finance Record already exists", 409);
   }
 
+  // Check if student has outstanding balance from any previous sessions
+  const previousRecords = await Finance.find({
+    student: studentId,
+    session: { $ne: session }, // any session that isn't the current one
+    outstandingBalance: { $gt: 0 }, // only if they actually owe something
+  });
+
+  const carriedOverBalance = previousRecords.reduce(
+    (sum, record) => sum + record.outstandingBalance,
+    0,
+  );
+
   const finance = new Finance({
-    student: userId,
+    student: studentId,
     session,
     semester,
     items,
+    carriedOverBalance,
   });
 
   //calculate BEFORE saving
@@ -46,7 +60,7 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments }) => {
     const finance = await Finance.findById(financeId).session(mongoSession);
 
     if (!finance) {
-      throw new Error("Finance not found");
+      throw new AppError("Finance not found", 404);
     }
 
     // loop through each payment
@@ -54,12 +68,13 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments }) => {
       const item = finance.items.find((i) => i.label === payment.itemLabel);
 
       if (!item) {
-        throw new Error(`Item "${payment.itemLabel}" not found`);
+        throw new AppError(`Item "${payment.itemLabel}" not found`, 404);
       }
 
       if (item.paidAmount + payment.amountPaid > item.amount) {
-        throw new Error(
+        throw new AppError(
           `Payment for "${payment.itemLabel}" exceeds required amount`,
+          400,
         );
       }
 
@@ -76,19 +91,11 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments }) => {
     // only update if the ID Card item exists in this finance record
 
     if (idCardItem) {
-      // check what student ID we're searching with
-      console.log("Searching for student:", finance.student);
-
-      // check what's actually in the IdCard collection
-      const allCards = await IdCard.find({});
-      console.log("All IdCards in DB:", JSON.stringify(allCards, null, 2));
-
-      const updatedCard = await IdCard.findOneAndUpdate(
+      await IdCard.findOneAndUpdate(
         { student: finance.student },
         { paidStatus: idCardItem.status === "Paid" ? "Paid" : "Unpaid" },
         { session: mongoSession, new: true },
       );
-      console.log("updatedCard:", updatedCard);
     }
 
     await mongoSession.commitTransaction();
@@ -97,8 +104,9 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments }) => {
     return { finance };
   } catch (err) {
     await mongoSession.abortTransaction();
-    mongoSession.endSession();
     throw err;
+  } finally {
+    mongoSession.endSession(); // always runs no matter what
   }
 };
 
@@ -110,7 +118,10 @@ const viewStudentFinance = async ({ session, semester, studentId }) => {
   });
 
   if (!existing) {
-    throw new Error("Finance not found for this student, semester and session");
+    throw new AppError(
+      "Finance not found for this student, semester and session",
+      404,
+    );
   }
 
   return { data: existing };

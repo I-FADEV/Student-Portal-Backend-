@@ -1,5 +1,7 @@
 const logAction = require("../utils/logAction");
 const IdCard = require("../models/idCard.model");
+const Finance = require("../models/finance.model");
+const AppError = require("../utils/AppError");
 
 const studentIdCard = async ({
   nameOnCard,
@@ -17,11 +19,11 @@ const studentIdCard = async ({
   fileName,
 }) => {
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new AppError("Unauthorized", 403);
   }
 
   if (!file) {
-    throw new Error("Please upload an image file");
+    throw new AppError("Please upload an image file", 400);
   }
 
   const normalizedName = nameOnCard.toUpperCase();
@@ -32,7 +34,7 @@ const studentIdCard = async ({
   // prevent duplicate ID card
   const existing = await IdCard.findOne({ student: studentId });
   if (existing) {
-    throw new Error("ID card already exists");
+    throw new AppError("ID card already exists", 409);
   }
 
   // check if student has already paid for ID Card in their finance record
@@ -79,7 +81,7 @@ const viewStudentIdCard = async ({ session, studentId }) => {
   });
 
   if (!idCard) {
-    throw new Error("ID card not found for this student and session");
+    throw new AppError("ID card not found for this student and session", 404);
   }
 
   return { data: idCard };

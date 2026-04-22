@@ -26,7 +26,7 @@ const adminRegisterSchema = joi.object({
     .required()
     .messages({
       "any.only":
-        "adminType must be super_admin, finance_admin, timetable_admin or idcard_admin",
+        "adminType must be general_admin, finance_admin, timetable_admin or idcard_admin",
       "any.required": "adminType is required",
     }),
 });
