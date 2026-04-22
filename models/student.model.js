@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const studentSchema = new mongoose.Schema(
   {
-    matric_number: {
+    matricNumber: {
       type: String,
       required: true,
       unique: true,
@@ -15,20 +15,12 @@ const studentSchema = new mongoose.Schema(
       type: String,
       default: "student",
     },
-    email: {
-      type: String,
-      default: null,
-    },
     department: {
       type: String,
       default: null,
     },
     level: {
-      type: String,
-      default: null,
-    },
-    photoURL: {
-      type: String,
+      type: Number,
       default: null,
     },
   },

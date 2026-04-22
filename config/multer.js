@@ -8,7 +8,7 @@ const storage = multer.diskStorage({
 
   filename: (req, file, cb) => {
     const uniqueNumber = Date.now() + "-" + file.originalname;
-    cd(null, uniqueNumber);
+    cb(null, uniqueNumber);
   },
 });
 
@@ -17,7 +17,7 @@ const fileFilter = (req, file, cb) => {
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true); // accept the file ✅
   } else {
-    cb(new Error("Only image files are allowed (jpeg, jpg, png, webp)"), false);
+    cb(new Error("Only image files are allowed (jpeg, jpg and png)"), false);
   }
 };
 
