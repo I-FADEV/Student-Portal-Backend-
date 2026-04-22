@@ -23,6 +23,13 @@ router.post(
   payFinance,
 );
 
+router.get(
+  "/adminView",
+  protect,
+  roleCheck(["admin"], ["finance_admin"]),
+  viewFinance,
+);
+
 router.get("/view", protect, roleCheck(["student"]), viewFinance);
 
 module.exports = router;

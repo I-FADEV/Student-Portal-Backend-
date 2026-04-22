@@ -47,11 +47,13 @@ const adminLogin = async (req, res, next) => {
 // Register
 const studentRegister = async (req, res, next) => {
   try {
-    const { matricNumber, password } = req.body;
+    const { matricNumber, password, department, level } = req.body;
 
     const { user, token } = await registerStudent({
       matricNumber,
       password,
+      department,
+      level,
     });
 
     res.status(201).json({

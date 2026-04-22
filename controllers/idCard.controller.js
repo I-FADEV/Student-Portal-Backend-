@@ -11,22 +11,30 @@ const createIdcard = async (req, res, next) => {
 
     const {
       nameOnCard,
-      matricOnCard,
+      nationalityOnCard,
+      dobOnCard,
       departmentOnCard,
-      levelOnCard,
       sessionOnCard,
+      genderOnCard,
+      levelOnCard,
+      matricOnCard,
+      telOnCard,
     } = req.body;
 
     const { data } = await studentIdCard({
       nameOnCard,
-      matricOnCard,
+      nationalityOnCard,
+      dobOnCard,
       departmentOnCard,
+      sessionOnCard,
+      genderOnCard,
       levelOnCard,
+      matricOnCard,
+      telOnCard,
       user: req.user,
       file: req.file,
       studentId: req.user.userId,
       fileName: req.file.filename,
-      sessionOnCard,
     });
 
     res.status(201).json({

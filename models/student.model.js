@@ -15,20 +15,12 @@ const studentSchema = new mongoose.Schema(
       type: String,
       default: "student",
     },
-    email: {
-      type: String,
-      default: null,
-    },
     department: {
       type: String,
       default: null,
     },
     level: {
       type: Number,
-      default: null,
-    },
-    photoURL: {
-      type: String,
       default: null,
     },
   },

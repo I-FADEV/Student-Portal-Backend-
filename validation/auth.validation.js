@@ -12,6 +12,14 @@ const adminRegisterSchema = joi.object({
     "string.min": "Password must be at least 6 characters",
     "any.required": "Password is required",
   }),
+  confirmPassword: joi
+    .string()
+    .valid(joi.ref("password")) // must match password exactly
+    .required()
+    .messages({
+      "any.only": "Passwords do not match",
+      "any.required": "Please confirm your password",
+    }),
   adminType: joi
     .string()
     .valid("general_admin", "finance_admin", "idcard_admin", "timetable_admin")
@@ -33,19 +41,33 @@ const adminLoginSchema = joi.object({
 });
 
 const studentRegisterSchema = joi.object({
-  matricNumber: joi
-    .string()
-    .uppercase()
-    .pattern(matricPattern)
-    .required()
-    .messages({
-      "string.pattern.base":
-        "Matric number must follow the format: I-FAT/26/CSC/0187",
-      "any.required": "Name is required",
-    }),
+  matricNumber: joi.string().pattern(matricPattern).required().messages({
+    "string.pattern.base":
+      "Matric number must follow the format: I-FAT/26/CSC/0187",
+    "any.required": "Matric number is required",
+  }),
+
   password: joi.string().min(6).required().messages({
     "string.min": "Password must be at least 6 characters",
     "any.required": "Password is required",
+  }),
+
+  confirmPassword: joi
+    .string()
+    .valid(joi.ref("password")) // must match password exactly
+    .required()
+    .messages({
+      "any.only": "Passwords do not match",
+      "any.required": "Please confirm your password",
+    }),
+
+  department: joi.string().required().messages({
+    "any.required": "Department is required",
+  }),
+
+  level: joi.number().valid(100, 200, 300, 400, 500).required().messages({
+    "any.only": "Level must be 100, 200, 300, 400 or 500",
+    "any.required": "Level is required",
   }),
 });
 

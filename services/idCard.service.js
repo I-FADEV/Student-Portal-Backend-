@@ -3,10 +3,14 @@ const IdCard = require("../models/idCard.model");
 
 const studentIdCard = async ({
   nameOnCard,
-  matricOnCard,
+  nationalityOnCard,
+  dobOnCard,
   departmentOnCard,
-  levelOnCard,
   sessionOnCard,
+  genderOnCard,
+  levelOnCard,
+  matricOnCard,
+  telOnCard,
   user,
   file,
   studentId,
@@ -21,8 +25,9 @@ const studentIdCard = async ({
   }
 
   const normalizedName = nameOnCard.toUpperCase();
-  const normalizedNumber = matricOnCard.toUpperCase();
+  const normalizedNationality = nationalityOnCard.toUpperCase();
   const normalizedDepartment = departmentOnCard.toUpperCase();
+  const normalizedMatric = matricOnCard.toUpperCase();
 
   // prevent duplicate ID card
   const existing = await IdCard.findOne({ student: studentId });
@@ -52,10 +57,14 @@ const studentIdCard = async ({
     student: studentId,
     photoURL: photoURLPath,
     nameOnCard: normalizedName,
-    matricOnCard: normalizedNumber,
+    nationalityOnCard: normalizedNationality,
+    dobOnCard,
     departmentOnCard: normalizedDepartment,
-    levelOnCard,
     sessionOnCard,
+    genderOnCard,
+    levelOnCard,
+    matricOnCard: normalizedMatric,
+    telOnCard,
   });
 
   // await logAction({});

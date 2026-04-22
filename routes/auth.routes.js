@@ -25,7 +25,13 @@ router.post(
   validate(adminRegisterSchema),
   adminRegister,
 );
-router.post("/admin/login", validate(adminLoginSchema), adminLogin);
+
+router.post(
+  "/admin/login",
+  roleCheck(["admin"]),
+  validate(adminLoginSchema),
+  adminLogin,
+);
 
 //both
 router.post("/refresh", refresh);

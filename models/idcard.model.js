@@ -18,11 +18,15 @@ const idCardSchema = new mongoose.Schema(
       trim: true,
     },
 
-    matricOnCard: {
+    nationalityOnCard: {
+      type: String,
+      required: true,
+    },
+
+    dobOnCard: {
       type: String,
       required: true,
       trim: true,
-      uppercase: true,
     },
 
     departmentOnCard: {
@@ -31,12 +35,31 @@ const idCardSchema = new mongoose.Schema(
       trim: true,
     },
 
+    sessionOnCard: {
+      type: String,
+      required: true,
+    },
+
+    genderOnCard: {
+      type: String,
+      required: true,
+      enum: ["Male", "Female"],
+      default: "Male",
+    },
+
     levelOnCard: {
       type: Number,
       required: true,
     },
 
-    sessionOnCard: {
+    matricOnCard: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
+    },
+
+    telOnCard: {
       type: String,
       required: true,
     },
@@ -49,8 +72,8 @@ const idCardSchema = new mongoose.Schema(
 
     collectedStatus: {
       type: String,
-      enum: ["Collected", "Not Collected"],
-      default: "Not Collected",
+      enum: ["Pending", "Collected", "Not Collected"],
+      default: "Pending",
     },
   },
   { timestamps: true },

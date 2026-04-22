@@ -58,12 +58,18 @@ const loginAdmin = async ({ username, password }) => {
   return { token };
 };
 
-const registerStudent = async ({ matricNumber, password }) => {
-  if (!matricNumber || !password) {
-    throw new Error("Matric number and password are required");
+const registerStudent = async ({
+  matricNumber,
+  password,
+  department,
+  level,
+}) => {
+  if (!matricNumber || !password || !department || !level) {
+    throw new Error("fill all required fields");
   }
 
   const normalizedMatric = matricNumber.toUpperCase();
+  const normalizedDepartment = department.toUpperCase();
 
   const existingUser = await Student.findOne({ matricNumber });
   if (existingUser) {
@@ -77,6 +83,8 @@ const registerStudent = async ({ matricNumber, password }) => {
     matricNumber: normalizedMatric,
     password: hashedPassword,
     role: "student",
+    department: normalizedDepartment,
+    level,
   });
 
   //  await logAction({});
@@ -88,6 +96,8 @@ const registerStudent = async ({ matricNumber, password }) => {
       id: newUser._id,
       matricNumber: newUser.matricNumber,
       role: newUser.role,
+      department: newUser.department,
+      level: newUser.department,
     },
     token,
   };
