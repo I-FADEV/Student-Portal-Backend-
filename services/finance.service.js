@@ -1,6 +1,6 @@
 const logAction = require("../utils/logAction");
 const Finance = require("../models/finance.model");
-const IdCard = require("../models/idCard.model");
+const IdCard = require("../models/idcard.model");
 const recalculateFinance = require("../utils/financeRecalculator");
 const mongoose = require("mongoose");
 const AppError = require("../utils/AppError");
