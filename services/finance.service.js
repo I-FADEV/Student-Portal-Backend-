@@ -3,7 +3,7 @@ const Finance = require("../models/finance.model");
 const IdCard = require("../models/idcard.model");
 const recalculateFinance = require("../utils/financeRecalculator");
 const mongoose = require("mongoose");
-const AppError = require("../utils/AppError");
+const AppError = require("../utils/appError");
 
 const createFinanceService = async ({
   session,

@@ -1,7 +1,7 @@
 const logAction = require("../utils/logAction");
 const IdCard = require("../models/idcard.model");
 const Finance = require("../models/finance.model");
-const AppError = require("../utils/AppError");
+const AppError = require("../utils/appError");
 
 const studentIdCard = async ({
   nameOnCard,
