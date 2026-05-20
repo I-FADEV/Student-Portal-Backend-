@@ -8,7 +8,7 @@ const idCardRoutes = require("./routes/idCard.routes");
 const profileRoutes = require("./routes/profile.routes");
 const financeRoutes = require("./routes/finance.routes");
 const errorHandler = require("./middleware/error.middleware");
-const { generalLimiter, authLimiter } = require("./config/rateLimiter");
+// const { generalLimiter, authLimiter } = require("./config/rateLimiter");
 connectDB();
 
 // Middleware
