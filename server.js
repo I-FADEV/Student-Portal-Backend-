@@ -19,7 +19,7 @@ app.use(
   }),
 );
 
-app.use(generalLimiter);
+// app.use(generalLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
