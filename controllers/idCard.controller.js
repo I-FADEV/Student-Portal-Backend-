@@ -1,72 +1,115 @@
-const path = require("path");
-const fs = require("fs");
 const {
-  studentIdCard,
-  viewStudentIdCard,
+  viewStudentIdCardService,
+  submitIdCardService,
+  markFeePaidService,
+  markCollectedService,
+  rejectIdCardService,
+  getAllIdCardsService,
 } = require("../services/idCard.service");
 
-const createIdcard = async (req, res, next) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "Please upload an image file" });
-    }
-
-    const {
-      nameOnCard,
-      nationalityOnCard,
-      dobOnCard,
-      departmentOnCard,
-      sessionOnCard,
-      genderOnCard,
-      levelOnCard,
-      matricOnCard,
-      telOnCard,
-    } = req.body;
-
-    const { data } = await studentIdCard({
-      nameOnCard,
-      nationalityOnCard,
-      dobOnCard,
-      departmentOnCard,
-      sessionOnCard,
-      genderOnCard,
-      levelOnCard,
-      matricOnCard,
-      telOnCard,
-      user: req.user,
-      file: req.file,
-      studentId: req.user.userId,
-      fileName: req.file.filename,
-    });
-
-    res.status(201).json({
-      message: "ID card created successfully",
-      data,
-    });
-  } catch (error) {
-    if (req.file) {
-      const filePath = path.join(__dirname, "../uploads", req.file.filename);
-      fs.unlink(filePath, (err) => {
-        if (err) console.error("Failed to delete orphaned file:", err.message);
-      });
-    }
-    next(error);
-  }
-};
-
+// ── STUDENT: view own ID card ─────────────────────────────────────────────────
 const viewIdCard = async (req, res, next) => {
   try {
-    const { data } = await viewStudentIdCard({
-      studentId: req.user.userId,
-      session: req.body.session,
-    });
-
-    res.status(200).json({
-      data,
-    });
+    const { data } = await viewStudentIdCardService({ studentId: req.user.userId });
+    res.status(200).json({ data });
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = { createIdcard, viewIdCard };
+// ── STUDENT: submit ID card form ──────────────────────────────────────────────
+const createIdcard = async (req, res, next) => {
+  try {
+    // Multer uses local disk storage — req.file.filename is the saved filename
+    // Photos are served as static files via /uploads/:filename
+    if (!req.file) {
+      return res.status(400).json({ error: "Passport photo is required." });
+    }
+
+    // Store just the filename — frontend reconstructs full URL as:
+    // API_BASE_URL + "/uploads/" + filename
+    const photoURL = req.file.filename;
+
+    const {
+      fullName,
+      nationality,
+      dateOfBirth,
+      gender,
+      phone,
+      matricNumber,
+      department,
+      level,
+      session,
+    } = req.body;
+
+    const { data } = await submitIdCardService({
+      studentId: req.user.userId,
+      photoURL,
+      fullName,
+      nationality,
+      dateOfBirth,
+      gender,
+      phone,
+      matricNumber,
+      department,
+      level,
+      session,
+    });
+
+    res.status(201).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── BURSAR ADMIN: mark fee as paid ────────────────────────────────────────────
+const markFeePaid = async (req, res, next) => {
+  try {
+    const studentId = req.params.studentId;
+    const { data, message } = await markFeePaidService({ studentId });
+    res.status(200).json({ data, message });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── TAC ADMIN: mark collected ─────────────────────────────────────────────────
+const markCollected = async (req, res, next) => {
+  try {
+    const { data, message } = await markCollectedService({ idCardId: req.params.id });
+    res.status(200).json({ data, message });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── TAC ADMIN: reject ID card ─────────────────────────────────────────────────
+const rejectIdCard = async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    const { data, message } = await rejectIdCardService({ idCardId: req.params.id, reason });
+    res.status(200).json({ data, message });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── TAC ADMIN: get all submissions ────────────────────────────────────────────
+const getAllIdCards = async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    const { data } = await getAllIdCardsService({ status });
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  viewIdCard,
+  createIdcard,
+  markFeePaid,
+  markCollected,
+  rejectIdCard,
+  getAllIdCards,
+};

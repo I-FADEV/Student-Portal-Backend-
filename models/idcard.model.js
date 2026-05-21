@@ -2,81 +2,96 @@ const mongoose = require("mongoose");
 
 const idCardSchema = new mongoose.Schema(
   {
-    student: {
+    studentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Student",
       required: true,
+      unique: true, // one record per student
     },
+
+    // ── Fee status (set by Bursar admin) ─────────────────────────────────────
+    feePaid: {
+      type: Boolean,
+      default: false,
+    },
+
+    // ── Submission status ─────────────────────────────────────────────────────
+    // unsubmitted → pending → collected
+    // unsubmitted ← rejected (TAC rejects, student can resubmit)
+    status: {
+      type: String,
+      enum: ["unsubmitted", "pending", "collected", "rejected"],
+      default: "unsubmitted",
+    },
+
+    // ── Student-filled fields ─────────────────────────────────────────────────
     photoURL: {
       type: String,
-      required: true,
+      default: null,
     },
-
-    nameOnCard: {
+    fullName: {
       type: String,
-      required: true,
-      trim: true,
+      default: null,
     },
-
-    nationalityOnCard: {
+    nationality: {
       type: String,
-      required: true,
+      default: null,
     },
-
-    dobOnCard: {
+    dateOfBirth: {
+      type: Date,
+      default: null,
+    },
+    gender: {
       type: String,
-      required: true,
-      trim: true,
+      enum: ["Male", "Female", null],
+      default: null,
     },
-
-    departmentOnCard: {
+    phone: {
       type: String,
-      required: true,
-      trim: true,
+      default: null,
     },
 
-    sessionOnCard: {
+    // ── Auto-filled from profile ──────────────────────────────────────────────
+    matricNumber: {
       type: String,
-      required: true,
+      default: null,
     },
-
-    genderOnCard: {
+    department: {
       type: String,
-      enum: ["Male", "Female"],
-      default: "Male",
+      default: null,
     },
-
-    levelOnCard: {
-      type: Number,
-      required: true,
-    },
-
-    matricOnCard: {
+    level: {
       type: String,
-      required: true,
-      trim: true,
-      uppercase: true,
+      default: null,
+    },
+    session: {
+      type: String,
+      default: null,
     },
 
-    telOnCard: {
-      type: String,
-      required: true,
+    // ── Timestamps for key events ─────────────────────────────────────────────
+    submittedAt: {
+      type: Date,
+      default: null,
     },
-
-    paidStatus: {
-      type: String,
-      enum: ["Paid", "Unpaid"],
-      default: "Unpaid",
+    feePaidAt: {
+      type: Date,
+      default: null,
     },
-
-    collectedStatus: {
+    collectedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectionReason: {
       type: String,
-      enum: ["Pending", "Collected", "Not Collected"],
-      default: "Pending",
+      default: null,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
-idCardSchema.index({ student: 1, sessionOnCard: 1 }, { unique: true });
 module.exports = mongoose.model("IdCard", idCardSchema);

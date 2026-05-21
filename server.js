@@ -1,8 +1,9 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const app = express();
 require("dotenv").config();
-const connectDB = require("./config/db");.0
+const connectDB = require("./config/db");
 
 const authRoutes      = require("./routes/auth.routes");
 const idCardRoutes    = require("./routes/idCard.routes");
@@ -13,7 +14,7 @@ const courseRoutes    = require("./routes/course.routes");
 const resultRoutes    = require("./routes/result.routes");
 
 const errorHandler = require("./middleware/error.middleware");
-// const { generalLimiter, authLimiter } = require("./config/rateLimiter");
+const { generalLimiter, authLimiter } = require("./config/rateLimiter");
 
 connectDB();
 
@@ -25,13 +26,15 @@ app.use(
   }),
 );
 
-// app.use(generalLimiter);
+app.use(generalLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve uploaded passport photos as static files
+// Frontend accesses them as: API_BASE_URL + "/uploads/" + filename
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // Routes
-//app.use("/auth/admin/login", authLimiter);
-//app.use("/auth/student/login", authLimiter);
 app.use("/auth/",     authRoutes);
 app.use("/idcard/",   idCardRoutes);
 app.use("/profile",   profileRoutes);

@@ -1,19 +1,24 @@
 const joi = require("joi");
 
+// ─── Patterns (kept from original) ───────────────────────────────────────────
 const matricPattern = /^I-FAT\/\d{2}\/[A-Z]{3,5}\/\d{4}(TF)?$/i;
 const sessionPattern = /^\d{4}\/\d{4}$/;
-const phonePattern = /^(\+234[789]\d{9}|0[789]\d{9}|\+229\d{10}|0\d{9})$/;
+const phonePattern   = /^(\+234[789]\d{9}|0[789]\d{9}|\+229\d{10}|0\d{9})$/;
 
+// ─── Schema (field names match what IDCard.jsx sends via FormData) ─────────────
 const createIdCardSchema = joi.object({
-  nameOnCard: joi.string().required().uppercase().messages({
-    "any.required": "Name is required",
+
+  fullName: joi.string().required().uppercase().messages({
+    "any.required": "Full name is required",
+    "string.empty": "Full name cannot be empty",
   }),
 
-  nationalityOnCard: joi.string().required().uppercase().messages({
+  nationality: joi.string().required().uppercase().messages({
     "any.required": "Nationality is required",
+    "string.empty": "Nationality cannot be empty",
   }),
 
-  dobOnCard: joi
+  dateOfBirth: joi
     .string()
     .pattern(/^\d{4}-\d{2}-\d{2}$/)
     .required()
@@ -22,34 +27,40 @@ const createIdCardSchema = joi.object({
       "any.required": "Date of birth is required",
     }),
 
-  departmentOnCard: joi.string().required().uppercase().messages({
+  department: joi.string().required().uppercase().messages({
     "any.required": "Department is required",
+    "string.empty": "Department cannot be empty",
   }),
 
-  sessionOnCard: joi.string().pattern(sessionPattern).required().messages({
+  session: joi.string().pattern(sessionPattern).required().messages({
     "string.pattern.base": "Session must follow the format: 2025/2026",
     "any.required": "Session is required",
   }),
 
-  genderOnCard: joi.string().valid("Male", "Female").required().messages({
+  gender: joi.string().valid("Male", "Female").required().messages({
     "any.only": "Gender must be Male or Female",
     "any.required": "Gender is required",
   }),
 
-  levelOnCard: joi.number().valid(100, 200, 300, 400, 500).required().messages({
-    "any.only": "Level must be 100, 200, 300, 400 or 500",
-    "any.required": "Level is required",
-  }),
+  // Comes as string from FormData — Joi coerces "200" → 200 automatically
+  level: joi
+    .number()
+    .valid(100, 200, 300, 400, 500)
+    .required()
+    .messages({
+      "any.only": "Level must be 100, 200, 300, 400 or 500",
+      "any.required": "Level is required",
+    }),
 
-  matricOnCard: joi.string().pattern(matricPattern).required().messages({
+  matricNumber: joi.string().pattern(matricPattern).required().messages({
     "string.pattern.base":
-      "Matric number must follow the format: I-FAT/26/CSC/0187 or I-FAT/26/CSC/0187/TF for transfer students",
+      "Matric number must follow the format: I-FAT/26/CSC/0187 (or I-FAT/26/CSC/0187TF for transfer students)",
     "any.required": "Matric number is required",
   }),
 
-  telOnCard: joi.string().pattern(phonePattern).required().messages({
+  phone: joi.string().pattern(phonePattern).required().messages({
     "string.pattern.base":
-      "Each phone number must be a valid Nigerian or Beninese number e.g 08012345678, +2348012345678, +2290112345678",
+      "Phone must be a valid Nigerian or Beninese number e.g. 08012345678, +2348012345678, +2290112345678",
     "any.required": "Phone number is required",
   }),
 });
