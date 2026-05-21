@@ -33,6 +33,14 @@ const courseSchema = new mongoose.Schema(
       type: String,
       required: true, // e.g. "2024/2025"
     },
+    lecturer: {
+      type: String,
+      default: null,
+    },
+    lecturerPhone: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

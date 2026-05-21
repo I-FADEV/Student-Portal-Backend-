@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 
+const TIME_SLOTS = ["8:00 - 10:00", "10:00 - 12:00", "1:00 - 3:00", "3:00 - 5:00"];
+
 const timetableSchema = new mongoose.Schema(
   {
     day: {
@@ -9,7 +11,8 @@ const timetableSchema = new mongoose.Schema(
     },
     time: {
       type: String,
-      required: true, // e.g. "8:00 AM - 10:00 AM"
+      required: true,
+      enum: TIME_SLOTS, // strictly one of the 4 fixed slots
     },
     courseCode: {
       type: String,
@@ -19,7 +22,6 @@ const timetableSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-
     lecturer: {
       type: String,
       default: null,
@@ -34,7 +36,7 @@ const timetableSchema = new mongoose.Schema(
     },
     session: {
       type: String,
-      required: true, // e.g. "2024/2025"
+      required: true,
     },
     semester: {
       type: String,
