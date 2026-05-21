@@ -1,4 +1,4 @@
-const IdCard = require("../models/idCard.model");
+const IdCard = require("../models/idcard.model");
 const Student = require("../models/student.model"); // adjust path if needed
 
 // ── STUDENT: view own ID card record ─────────────────────────────────────────
