@@ -21,11 +21,10 @@ const createFinanceService = async ({
     throw new AppError("Finance Record already exists", 409);
   }
 
-  // Check if student has outstanding balance from any previous sessions
   const previousRecords = await Finance.find({
     student: studentId,
-    session: { $ne: session }, // any session that isn't the current one
-    outstandingBalance: { $gt: 0 }, // only if they actually owe something
+    session: { $ne: session },
+    outstandingBalance: { $gt: 0 },
   });
 
   const carriedOverBalance = previousRecords.reduce(
@@ -41,12 +40,8 @@ const createFinanceService = async ({
     carriedOverBalance,
   });
 
-  //calculate BEFORE saving
   recalculateFinance(finance);
-
   await finance.save();
-
-  //await logAction({})
 
   return { data: finance };
 };
@@ -63,7 +58,6 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments }) => {
       throw new AppError("Finance not found", 404);
     }
 
-    // loop through each payment
     for (const payment of payments) {
       const item = finance.items.find((i) => i.label === payment.itemLabel);
 
@@ -85,10 +79,7 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments }) => {
     finance.markModified("items");
     await finance.save({ session: mongoSession });
 
-    // find the ID Card item specifically
     const idCardItem = finance.items.find((i) => i.label === "ID Card");
-
-    // only update if the ID Card item exists in this finance record
 
     if (idCardItem) {
       await IdCard.findOneAndUpdate(
@@ -106,25 +97,26 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments }) => {
     await mongoSession.abortTransaction();
     throw err;
   } finally {
-    mongoSession.endSession(); // always runs no matter what
+    mongoSession.endSession();
   }
 };
 
 const viewStudentFinance = async ({ session, semester, studentId }) => {
-  const existing = await Finance.findOne({
-    session,
-    semester,
-    student: studentId,
-  });
+  // Build query — if no session/semester provided, fetch all records for this student
+  const query = { student: studentId };
+  if (session)  query.session  = session;
+  if (semester) query.semester = semester;
 
-  if (!existing) {
-    throw new AppError(
-      "Finance not found for this student, semester and session",
-      404,
-    );
+  // If filtering by session+semester, return single record; otherwise return all
+  if (session && semester) {
+    const record = await Finance.findOne(query);
+    // Return null instead of throwing — frontend handles empty state gracefully
+    return { data: record || null };
   }
 
-  return { data: existing };
+  // No filters — return all finance records for the student
+  const records = await Finance.find(query).sort({ createdAt: -1 });
+  return { data: records };
 };
 
 module.exports = {
