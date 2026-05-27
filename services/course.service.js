@@ -7,17 +7,23 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   if (!student) throw new Error("Student not found");
 
   if (!student.department || !student.level) {
-    throw new Error("Your profile is incomplete. Department or level is missing.");
+    throw new Error(
+      "Your profile is incomplete. Department or level is missing.",
+    );
   }
 
   const query = {
     department: student.department,
     level: student.level,
   };
-  if (session)  query.session  = session;
+  if (session) query.session = session;
   if (semester) query.semester = semester;
 
-  const courses = await Course.find(query).sort({ session: -1, semester: -1, code: 1 });
+  const courses = await Course.find(query).sort({
+    session: -1,
+    semester: -1,
+    code: 1,
+  });
   return { data: courses };
 };
 
@@ -33,10 +39,14 @@ const createCourseService = async ({
   lecturer,
   lecturerPhone,
 }) => {
-  const existing = await Course.findOne({ code: code.toUpperCase(), session, semester });
+  const existing = await Course.findOne({
+    code: code.toUpperCase(),
+    session,
+    semester,
+  });
   if (existing) {
     throw new Error(
-      `Course ${code.toUpperCase()} already exists for ${session} ${semester} Semester`
+      `Course ${code.toUpperCase()} already exists for ${session} ${semester} Semester`,
     );
   }
 
@@ -48,7 +58,7 @@ const createCourseService = async ({
     level,
     semester,
     session,
-    lecturer:      lecturer      || null,
+    lecturer: lecturer || null,
     lecturerPhone: lecturerPhone || null,
   });
 
@@ -64,7 +74,7 @@ const createBulkCoursesService = async ({ courses }) => {
   // Normalise each entry so lecturer fields are always present
   const normalised = courses.map((c) => ({
     ...c,
-    lecturer:      c.lecturer      || null,
+    lecturer: c.lecturer || null,
     lecturerPhone: c.lecturerPhone || null,
   }));
 
@@ -73,14 +83,23 @@ const createBulkCoursesService = async ({ courses }) => {
 };
 
 // ── ADMIN: get all courses (with optional filters) ─────────────────────────────
-const getAllCoursesService = async ({ department, level, session, semester }) => {
+const getAllCoursesService = async ({
+  department,
+  level,
+  session,
+  semester,
+}) => {
   const query = {};
   if (department) query.department = department;
-  if (level)      query.level      = Number(level);
-  if (session)    query.session    = session;
-  if (semester)   query.semester   = semester;
+  if (level) query.level = Number(level);
+  if (session) query.session = session;
+  if (semester) query.semester = semester;
 
-  const courses = await Course.find(query).sort({ department: 1, level: 1, code: 1 });
+  const courses = await Course.find(query).sort({
+    department: 1,
+    level: 1,
+    code: 1,
+  });
   return { data: courses };
 };
 

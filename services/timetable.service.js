@@ -1,4 +1,4 @@
-const Timetable = require("../models/timetable.model"); 
+const Timetable = require("../models/timetable.model");
 const Student = require("../models/student.model"); // adjust path if needed
 
 // ── STUDENT: get own timetable by dept + level ───────────────────────────────
@@ -8,14 +8,16 @@ const getStudentTimetableService = async ({ userId, session, semester }) => {
   if (!student) throw new Error("Student not found");
 
   if (!student.department || !student.level) {
-    throw new Error("Your profile is incomplete. Department or level is missing.");
+    throw new Error(
+      "Your profile is incomplete. Department or level is missing.",
+    );
   }
 
   const query = {
     department: student.department,
     level: student.level,
   };
-  if (session)  query.session  = session;
+  if (session) query.session = session;
   if (semester) query.semester = semester;
 
   const timetable = await Timetable.find(query).sort({ day: 1, time: 1 });
@@ -63,14 +65,23 @@ const createBulkTimetableService = async ({ entries }) => {
 };
 
 // ── ADMIN: view all timetable entries (with optional filters) ─────────────────
-const getAllTimetableService = async ({ department, level, session, semester }) => {
+const getAllTimetableService = async ({
+  department,
+  level,
+  session,
+  semester,
+}) => {
   const query = {};
   if (department) query.department = department;
-  if (level)      query.level      = Number(level);
-  if (session)    query.session    = session;
-  if (semester)   query.semester   = semester;
+  if (level) query.level = Number(level);
+  if (session) query.session = session;
+  if (semester) query.semester = semester;
 
-  const timetable = await Timetable.find(query).sort({ department: 1, level: 1, day: 1 });
+  const timetable = await Timetable.find(query).sort({
+    department: 1,
+    level: 1,
+    day: 1,
+  });
   return { data: timetable };
 };
 

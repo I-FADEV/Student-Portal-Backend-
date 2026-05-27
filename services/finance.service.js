@@ -104,7 +104,7 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments }) => {
 const viewStudentFinance = async ({ session, semester, studentId }) => {
   // Build query — if no session/semester provided, fetch all records for this student
   const query = { student: studentId };
-  if (session)  query.session  = session;
+  if (session) query.session = session;
   if (semester) query.semester = semester;
 
   // If filtering by session+semester, return single record; otherwise return all

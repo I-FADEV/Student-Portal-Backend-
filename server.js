@@ -5,13 +5,13 @@ const app = express();
 require("dotenv").config();
 const connectDB = require("./config/db");
 
-const authRoutes      = require("./routes/auth.routes");
-const idCardRoutes    = require("./routes/idCard.routes");
-const profileRoutes   = require("./routes/profile.routes");
-const financeRoutes   = require("./routes/finance.routes");
+const authRoutes = require("./routes/auth.routes");
+const idCardRoutes = require("./routes/idCard.routes");
+const profileRoutes = require("./routes/profile.routes");
+const financeRoutes = require("./routes/finance.routes");
 const timetableRoutes = require("./routes/timetable.routes");
-const courseRoutes    = require("./routes/course.routes");
-const resultRoutes    = require("./routes/result.routes");
+const courseRoutes = require("./routes/course.routes");
+const resultRoutes = require("./routes/result.routes");
 
 const errorHandler = require("./middleware/error.middleware");
 const { generalLimiter, authLimiter } = require("./config/rateLimiter");
@@ -35,13 +35,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Routes
-app.use("/auth/",     authRoutes);
-app.use("/idcard/",   idCardRoutes);
-app.use("/profile",   profileRoutes);
-app.use("/finance",   financeRoutes);
+app.use("/auth/admin/login", authLimiter);
+app.use("/auth/student/login", authLimiter);
+app.use("/auth/", authRoutes);
+app.use("/idcard/", idCardRoutes);
+app.use("/profile", profileRoutes);
+app.use("/finance", financeRoutes);
 app.use("/timetable", timetableRoutes);
-app.use("/courses",   courseRoutes);
-app.use("/results",   resultRoutes);
+app.use("/courses", courseRoutes);
+app.use("/results", resultRoutes);
 
 // Test route
 app.get("/", (req, res) => {
@@ -52,5 +54,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}, waiting for mongoDB connection...`);
+  console.log(
+    `Server running on port ${PORT}, waiting for mongoDB connection...`,
+  );
 });

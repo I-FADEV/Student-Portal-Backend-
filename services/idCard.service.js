@@ -30,33 +30,38 @@ const submitIdCardService = async ({
 }) => {
   const idCard = await IdCard.findOne({ studentId });
 
-  if (!idCard) throw new Error("ID card record not found. Please refresh and try again.");
+  if (!idCard)
+    throw new Error("ID card record not found. Please refresh and try again.");
 
   // Guard: fee must be paid
   if (!idCard.feePaid) {
-    throw new Error("Your ID card fee has not been confirmed yet. Please pay at the Bursar's office first.");
+    throw new Error(
+      "Your ID card fee has not been confirmed yet. Please pay at the Bursar's office first.",
+    );
   }
 
   // Guard: one-time submission — can only submit if unsubmitted or rejected
   if (idCard.status === "pending" || idCard.status === "collected") {
-    throw new Error("You have already submitted your ID card request and it cannot be changed at this time.");
+    throw new Error(
+      "You have already submitted your ID card request and it cannot be changed at this time.",
+    );
   }
 
   // Update record with submitted data
-  idCard.photoURL        = photoURL;
-  idCard.fullName        = fullName;
-  idCard.nationality     = nationality;
-  idCard.dateOfBirth     = dateOfBirth;
-  idCard.gender          = gender;
-  idCard.phone           = phone;
-  idCard.matricNumber    = matricNumber;
-  idCard.department      = department;
-  idCard.level           = level;
-  idCard.session         = session;
-  idCard.status          = "pending";
-  idCard.submittedAt     = new Date();
+  idCard.photoURL = photoURL;
+  idCard.fullName = fullName;
+  idCard.nationality = nationality;
+  idCard.dateOfBirth = dateOfBirth;
+  idCard.gender = gender;
+  idCard.phone = phone;
+  idCard.matricNumber = matricNumber;
+  idCard.department = department;
+  idCard.level = level;
+  idCard.session = session;
+  idCard.status = "pending";
+  idCard.submittedAt = new Date();
   idCard.rejectionReason = null;
-  idCard.rejectedAt      = null;
+  idCard.rejectedAt = null;
 
   await idCard.save();
   return { data: idCard };
@@ -68,13 +73,19 @@ const markFeePaidService = async ({ studentId }) => {
   let idCard = await IdCard.findOne({ studentId });
 
   if (!idCard) {
-    idCard = await IdCard.create({ studentId, feePaid: true, feePaidAt: new Date() });
+    idCard = await IdCard.create({
+      studentId,
+      feePaid: true,
+      feePaidAt: new Date(),
+    });
   } else {
     if (idCard.feePaid) {
-      throw new Error("ID card fee has already been marked as paid for this student.");
+      throw new Error(
+        "ID card fee has already been marked as paid for this student.",
+      );
     }
-    idCard.feePaid    = true;
-    idCard.feePaidAt  = new Date();
+    idCard.feePaid = true;
+    idCard.feePaidAt = new Date();
     await idCard.save();
   }
 
@@ -87,10 +98,12 @@ const markCollectedService = async ({ idCardId }) => {
   if (!idCard) throw new Error("ID card record not found.");
 
   if (idCard.status !== "pending") {
-    throw new Error(`Cannot mark as collected — current status is "${idCard.status}".`);
+    throw new Error(
+      `Cannot mark as collected — current status is "${idCard.status}".`,
+    );
   }
 
-  idCard.status      = "collected";
+  idCard.status = "collected";
   idCard.collectedAt = new Date();
   await idCard.save();
 
@@ -107,15 +120,18 @@ const rejectIdCardService = async ({ idCardId, reason }) => {
     throw new Error(`Cannot reject — current status is "${idCard.status}".`);
   }
 
-  idCard.status          = "unsubmitted"; // unlocks form for resubmission
-  idCard.rejectedAt      = new Date();
+  idCard.status = "unsubmitted"; // unlocks form for resubmission
+  idCard.rejectedAt = new Date();
   idCard.rejectionReason = reason || "No reason provided.";
   // Clear submitted photo/data so student must resubmit cleanly
-  idCard.photoURL        = null;
-  idCard.submittedAt     = null;
+  idCard.photoURL = null;
+  idCard.submittedAt = null;
 
   await idCard.save();
-  return { data: idCard, message: "ID card rejected. Student can now resubmit." };
+  return {
+    data: idCard,
+    message: "ID card rejected. Student can now resubmit.",
+  };
 };
 
 // ── TAC ADMIN: get all ID card submissions ────────────────────────────────────
