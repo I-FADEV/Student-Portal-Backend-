@@ -6,7 +6,7 @@ const {
   deleteCourseService,
 } = require("../services/course.service");
 
-// ── STUDENT ──────────────────────────────────────────────────────────────────
+//STUDENT
 const getMyCourses = async (req, res, next) => {
   try {
     const { session, semester } = req.query;
@@ -26,10 +26,17 @@ const getMyCourses = async (req, res, next) => {
 // ── ADMIN ─────────────────────────────────────────────────────────────────────
 const createCourse = async (req, res, next) => {
   try {
-    const { name, code, creditUnit, department, level, semester, session } = req.body;
+    const { name, code, creditUnit, department, level, semester, session } =
+      req.body;
 
     const { data } = await createCourseService({
-      name, code, creditUnit, department, level, semester, session,
+      name,
+      code,
+      creditUnit,
+      department,
+      level,
+      semester,
+      session,
     });
 
     res.status(201).json({ data });
@@ -54,7 +61,12 @@ const getAllCourses = async (req, res, next) => {
   try {
     const { department, level, session, semester } = req.query;
 
-    const { data } = await getAllCoursesService({ department, level, session, semester });
+    const { data } = await getAllCoursesService({
+      department,
+      level,
+      session,
+      semester,
+    });
 
     res.status(200).json({ data });
   } catch (error) {

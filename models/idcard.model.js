@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const idCardSchema = new mongoose.Schema(
   {
-    studentId: {
+    student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Student",
       required: true,
@@ -91,7 +91,7 @@ const idCardSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("IdCard", idCardSchema);

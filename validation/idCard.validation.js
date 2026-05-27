@@ -3,11 +3,10 @@ const joi = require("joi");
 // ─── Patterns (kept from original) ───────────────────────────────────────────
 const matricPattern = /^I-FAT\/\d{2}\/[A-Z]{3,5}\/\d{4}(TF)?$/i;
 const sessionPattern = /^\d{4}\/\d{4}$/;
-const phonePattern   = /^(\+234[789]\d{9}|0[789]\d{9}|\+229\d{10}|0\d{9})$/;
+const phonePattern = /^(\+234[789]\d{9}|0[789]\d{9}|\+229\d{10}|0\d{9})$/;
 
 // ─── Schema (field names match what IDCard.jsx sends via FormData) ─────────────
 const createIdCardSchema = joi.object({
-
   fullName: joi.string().required().uppercase().messages({
     "any.required": "Full name is required",
     "string.empty": "Full name cannot be empty",
@@ -43,14 +42,10 @@ const createIdCardSchema = joi.object({
   }),
 
   // Comes as string from FormData — Joi coerces "200" → 200 automatically
-  level: joi
-    .number()
-    .valid(100, 200, 300, 400, 500)
-    .required()
-    .messages({
-      "any.only": "Level must be 100, 200, 300, 400 or 500",
-      "any.required": "Level is required",
-    }),
+  level: joi.number().valid(100, 200, 300, 400, 500).required().messages({
+    "any.only": "Level must be 100, 200, 300, 400 or 500",
+    "any.required": "Level is required",
+  }),
 
   matricNumber: joi.string().pattern(matricPattern).required().messages({
     "string.pattern.base":

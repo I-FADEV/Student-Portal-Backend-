@@ -10,12 +10,9 @@ const {
   deleteTimetableEntry,
 } = require("../controllers/timetable.controller");
 
-// ── STUDENT ──────────────────────────────────────────────────────────────────
-// GET /timetable/view — student sees their own timetable (by dept + level)
+
 router.get("/view", protect, roleCheck(["student"]), getMyTimetable);
 
-// ── ADMIN (timetable_admin) ───────────────────────────────────────────────────
-// GET /timetable/admin — view all timetable entries
 router.get(
   "/admin",
   protect,
@@ -23,7 +20,6 @@ router.get(
   getAllTimetable
 );
 
-// POST /timetable/create — add a single entry
 router.post(
   "/create",
   protect,
@@ -31,7 +27,6 @@ router.post(
   createTimetableEntry
 );
 
-// POST /timetable/bulk — add multiple entries at once
 router.post(
   "/bulk",
   protect,
@@ -39,7 +34,6 @@ router.post(
   createBulkTimetable
 );
 
-// DELETE /timetable/:id — remove an entry
 router.delete(
   "/:id",
   protect,

@@ -1,15 +1,5 @@
 const mongoose = require("mongoose");
 
-// Grade calculation rules
-function calculateGrade(total) {
-  if (total >= 70) return "A";
-  if (total >= 60) return "B";
-  if (total >= 50) return "C";
-  if (total >= 45) return "D";
-  if (total >= 40) return "E";
-  return "F";
-}
-
 const resultSchema = new mongoose.Schema(
   {
     studentId: {
@@ -34,13 +24,13 @@ const resultSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0,
-      max: 30,
+      max: 40,
     },
     exam: {
       type: Number,
       required: true,
       min: 0,
-      max: 70,
+      max: 60,
     },
     total: {
       type: Number,
@@ -58,18 +48,7 @@ const resultSchema = new mongoose.Schema(
       enum: ["First", "Second"],
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
-
-// Auto-calculate total and grade before saving
-resultSchema.pre("save", function (next) {
-  this.total = this.test + this.exam;
-  this.grade = calculateGrade(this.total);
-  next();
-});
-
-// Also handle bulk insertions via insertMany (pre hook won't fire)
-// So we expose the helper for use in service
-resultSchema.statics.calculateGrade = calculateGrade;
 
 module.exports = mongoose.model("Result", resultSchema);
