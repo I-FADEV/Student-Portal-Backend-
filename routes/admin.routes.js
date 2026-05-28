@@ -9,4 +9,11 @@ const {
 
 router.put("/change-password", protect, changeAdminPassword);
 
+router.delete(
+  "/delete",
+  protect,
+  roleCheck(["admin"], ["general_admin"]),
+  deleteAdmin,
+);
+
 module.exports = router;
