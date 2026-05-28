@@ -4,10 +4,11 @@ const {
   createBulkTimetableService,
   getAllTimetableService,
   deleteTimetableEntryService,
+  updateTimetableEntryService,
+  generateTimetableService,
 } = require("../services/timetable.service");
 
-// ── STUDENT ──────────────────────────────────────────────────────────────────
-const getMyTimetable = async (req, res, next) => {
+const getStudentTimetable = async (req, res, next) => {
   try {
     const { session, semester } = req.query;
 
@@ -23,13 +24,32 @@ const getMyTimetable = async (req, res, next) => {
   }
 };
 
-// ── ADMIN ─────────────────────────────────────────────────────────────────────
 const createTimetableEntry = async (req, res, next) => {
   try {
-    const { day, time, courseCode, courseName, venue, lecturer, department, level, session, semester } = req.body;
+    const {
+      day,
+      time,
+      courseCode,
+      courseName,
+      venue,
+      lecturer,
+      department,
+      level,
+      session,
+      semester,
+    } = req.body;
 
     const { data } = await createTimetableEntryService({
-      day, time, courseCode, courseName, venue, lecturer, department, level, session, semester,
+      day,
+      time,
+      courseCode,
+      courseName,
+      venue,
+      lecturer,
+      department,
+      level,
+      session,
+      semester,
     });
 
     res.status(201).json({ data });
@@ -42,9 +62,9 @@ const createBulkTimetable = async (req, res, next) => {
   try {
     const { entries } = req.body;
 
-    const { data, count } = await createBulkTimetableService({ entries });
+    const { data } = await createBulkTimetableService({ entries });
 
-    res.status(201).json({ data, count });
+    res.status(201).json(data);
   } catch (error) {
     next(error);
   }
@@ -54,7 +74,25 @@ const getAllTimetable = async (req, res, next) => {
   try {
     const { department, level, session, semester } = req.query;
 
-    const { data } = await getAllTimetableService({ department, level, session, semester });
+    const { data } = await getAllTimetableService({
+      department,
+      level,
+      session,
+      semester,
+    });
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateTimetableEntry = async (req, res, next) => {
+  try {
+    const { data } = await updateTimetableEntryService({
+      entryId: req.params.id,
+      ...req.body,
+    });
 
     res.status(200).json({ data });
   } catch (error) {
@@ -64,7 +102,9 @@ const getAllTimetable = async (req, res, next) => {
 
 const deleteTimetableEntry = async (req, res, next) => {
   try {
-    const { message } = await deleteTimetableEntryService({ entryId: req.params.id });
+    const { message } = await deleteTimetableEntryService({
+      entryId: req.params.id,
+    });
 
     res.status(200).json({ message });
   } catch (error) {
@@ -72,10 +112,33 @@ const deleteTimetableEntry = async (req, res, next) => {
   }
 };
 
+const generateTimetableController = async (req, res, next) => {
+  try {
+    const { department, level, session, semester } = req.body;
+
+    const result = await generateTimetableService({
+      department,
+      level,
+      session,
+      semester,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Timetable generated successfully",
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
-  getMyTimetable,
+  getStudentTimetable,
   createTimetableEntry,
   createBulkTimetable,
   getAllTimetable,
   deleteTimetableEntry,
+  updateTimetableEntry,
+  generateTimetableController,
 };
