@@ -26,6 +26,8 @@ const getStudentTimetable = async (req, res, next) => {
 
 const createTimetableEntry = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const {
       day,
       time,
@@ -50,6 +52,8 @@ const createTimetableEntry = async (req, res, next) => {
       level,
       session,
       semester,
+      performedBy,
+      ipAddress,
     });
 
     res.status(201).json({ data });
@@ -60,9 +64,15 @@ const createTimetableEntry = async (req, res, next) => {
 
 const createBulkTimetable = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const { entries } = req.body;
 
-    const { data } = await createBulkTimetableService({ entries });
+    const { data } = await createBulkTimetableService({
+      entries,
+      performedBy,
+      ipAddress,
+    });
 
     res.status(201).json(data);
   } catch (error) {
@@ -89,9 +99,14 @@ const getAllTimetable = async (req, res, next) => {
 
 const updateTimetableEntry = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+
     const { data } = await updateTimetableEntryService({
       entryId: req.params.id,
       ...req.body,
+      performedBy,
+      ipAddress,
     });
 
     res.status(200).json({ data });
@@ -102,8 +117,13 @@ const updateTimetableEntry = async (req, res, next) => {
 
 const deleteTimetableEntry = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+
     const { message } = await deleteTimetableEntryService({
       entryId: req.params.id,
+      performedBy,
+      ipAddress,
     });
 
     res.status(200).json({ message });

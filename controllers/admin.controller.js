@@ -5,16 +5,21 @@ const {
 
 const changeAdminPassword = async (req, res, next) => {
   try {
-    const AdminId = req.user.userId;
+    const adminId = req.user.userId;
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const { currentPassword, newPassword } = req.body;
 
-    const { result } = await changePasswordService({
-      AdminId,
+    // Bug fix: was calling changePasswordService (undefined) — now calls the correct import
+    const { message } = await changeAdminPasswordService({
+      adminId,
       currentPassword,
       newPassword,
+      performedBy,
+      ipAddress,
     });
 
-    res.status(200).json({ result });
+    res.status(200).json({ message });
   } catch (error) {
     next(error);
   }
@@ -22,7 +27,15 @@ const changeAdminPassword = async (req, res, next) => {
 
 const deleteAdmin = async (req, res, next) => {
   try {
-    const { message } = await deleteAdminService({ adminId: req.params.id });
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+
+    const { message } = await deleteAdminService({
+      adminId: req.params.id,
+      performedBy,
+      ipAddress,
+    });
+
     res.status(200).json({ message });
   } catch (error) {
     next(error);

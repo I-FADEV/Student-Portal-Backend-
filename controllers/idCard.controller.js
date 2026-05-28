@@ -10,7 +10,9 @@ const {
 // ── STUDENT: view own ID card ─────────────────────────────────────────────────
 const viewIdCard = async (req, res, next) => {
   try {
-    const { data } = await viewStudentIdCardService({ studentId: req.user.userId });
+    const { data } = await viewStudentIdCardService({
+      studentId: req.user.userId,
+    });
     res.status(200).json({ data });
   } catch (error) {
     next(error);
@@ -20,16 +22,11 @@ const viewIdCard = async (req, res, next) => {
 // ── STUDENT: submit ID card form ──────────────────────────────────────────────
 const createIdcard = async (req, res, next) => {
   try {
-    // Multer uses local disk storage — req.file.filename is the saved filename
-    // Photos are served as static files via /uploads/:filename
     if (!req.file) {
       return res.status(400).json({ error: "Passport photo is required." });
     }
 
-    // Store just the filename — frontend reconstructs full URL as:
-    // API_BASE_URL + "/uploads/" + filename
     const photoURL = req.file.filename;
-
     const {
       fullName,
       nationality,
@@ -65,8 +62,16 @@ const createIdcard = async (req, res, next) => {
 // ── BURSAR ADMIN: mark fee as paid ────────────────────────────────────────────
 const markFeePaid = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const studentId = req.params.studentId;
-    const { data, message } = await markFeePaidService({ studentId });
+
+    const { data, message } = await markFeePaidService({
+      studentId,
+      performedBy,
+      ipAddress,
+    });
+
     res.status(200).json({ data, message });
   } catch (error) {
     next(error);
@@ -76,7 +81,15 @@ const markFeePaid = async (req, res, next) => {
 // ── TAC ADMIN: mark collected ─────────────────────────────────────────────────
 const markCollected = async (req, res, next) => {
   try {
-    const { data, message } = await markCollectedService({ idCardId: req.params.id });
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+
+    const { data, message } = await markCollectedService({
+      idCardId: req.params.id,
+      performedBy,
+      ipAddress,
+    });
+
     res.status(200).json({ data, message });
   } catch (error) {
     next(error);
@@ -86,8 +99,17 @@ const markCollected = async (req, res, next) => {
 // ── TAC ADMIN: reject ID card ─────────────────────────────────────────────────
 const rejectIdCard = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const { reason } = req.body;
-    const { data, message } = await rejectIdCardService({ idCardId: req.params.id, reason });
+
+    const { data, message } = await rejectIdCardService({
+      idCardId: req.params.id,
+      reason,
+      performedBy,
+      ipAddress,
+    });
+
     res.status(200).json({ data, message });
   } catch (error) {
     next(error);
@@ -98,7 +120,9 @@ const rejectIdCard = async (req, res, next) => {
 const getAllIdCards = async (req, res, next) => {
   try {
     const { status } = req.query;
+
     const { data } = await getAllIdCardsService({ status });
+
     res.status(200).json({ data });
   } catch (error) {
     next(error);

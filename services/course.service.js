@@ -1,7 +1,7 @@
 const Course = require("../models/course.model");
 const Student = require("../models/student.model");
+const logAction = require("../utils/logAction");
 
-// ── STUDENT: get ALL courses for their department + level (all sessions) ──────
 const getStudentCoursesService = async ({ userId, session, semester }) => {
   const student = await Student.findById(userId);
   if (!student) throw new Error("Student not found");
@@ -27,7 +27,6 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   return { data: courses };
 };
 
-// ── ADMIN: create a single course ─────────────────────────────────────────────
 const createCourseService = async ({
   name,
   code,
@@ -38,6 +37,8 @@ const createCourseService = async ({
   session,
   lecturer,
   lecturerPhone,
+  performedBy,
+  ipAddress,
 }) => {
   const existing = await Course.findOne({
     code: code.toUpperCase(),
@@ -62,16 +63,31 @@ const createCourseService = async ({
     lecturerPhone: lecturerPhone || null,
   });
 
+  await logAction({
+    performedBy,
+    action: "CREATE",
+    targetType: "COURSE",
+    targetId: course._id,
+    description: `Course ${code.toUpperCase()} created for ${department} level ${level} (${session} ${semester})`,
+    changes: {
+      before: null,
+      after: { name, code, creditUnit, department, level, session, semester },
+    },
+    ipAddress,
+  });
+
   return { data: course };
 };
 
-// ── ADMIN: create multiple courses at once ─────────────────────────────────────
-const createBulkCoursesService = async ({ courses }) => {
+const createBulkCoursesService = async ({
+  courses,
+  performedBy,
+  ipAddress,
+}) => {
   if (!Array.isArray(courses) || courses.length === 0) {
     throw new Error("Courses must be a non-empty array");
   }
 
-  // Normalise each entry so lecturer fields are always present
   const normalised = courses.map((c) => ({
     ...c,
     lecturer: c.lecturer || null,
@@ -79,10 +95,24 @@ const createBulkCoursesService = async ({ courses }) => {
   }));
 
   const result = await Course.insertMany(normalised);
+
+  // Log once for the whole batch
+  await logAction({
+    performedBy,
+    action: "CREATE",
+    targetType: "COURSE",
+    targetId: performedBy, // no single target — use admin id as stand-in
+    description: `Bulk course upload — ${result.length} courses created`,
+    changes: {
+      before: null,
+      after: { count: result.length },
+    },
+    ipAddress,
+  });
+
   return { data: result, count: result.length };
 };
 
-// ── ADMIN: get all courses (with optional filters) ─────────────────────────────
 const getAllCoursesService = async ({
   department,
   level,
@@ -103,10 +133,23 @@ const getAllCoursesService = async ({
   return { data: courses };
 };
 
-// ── ADMIN: delete a course ─────────────────────────────────────────────────────
-const deleteCourseService = async ({ courseId }) => {
+const deleteCourseService = async ({ courseId, performedBy, ipAddress }) => {
   const course = await Course.findByIdAndDelete(courseId);
   if (!course) throw new Error("Course not found");
+
+  await logAction({
+    performedBy,
+    action: "DELETE",
+    targetType: "COURSE",
+    targetId: courseId,
+    description: `Course ${course.code} deleted`,
+    changes: {
+      before: { name: course.name, code: course.code, session: course.session },
+      after: null,
+    },
+    ipAddress,
+  });
+
   return { message: "Course deleted" };
 };
 

@@ -24,9 +24,10 @@ const getStudentResult = async (req, res, next) => {
   }
 };
 
-// ── ADMIN ─────────────────────────────────────────────────────────────────────
 const uploadSingleResult = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const {
       matricNumber,
       courseCode,
@@ -47,6 +48,8 @@ const uploadSingleResult = async (req, res, next) => {
       exam,
       session,
       semester,
+      performedBy,
+      ipAddress,
     });
 
     res.status(201).json({ data });
@@ -64,8 +67,6 @@ const uploadBulkResults = async (req, res, next) => {
     }
 
     filePath = req.file.path;
-
-    // Parse Excel
     const parsedResults = parseExcel(filePath);
 
     if (!parsedResults.length) {
@@ -83,6 +84,9 @@ const uploadBulkResults = async (req, res, next) => {
       });
     }
 
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+
     const response = await uploadBulkResultsService({
       results: parsedResults,
       courseCode,
@@ -90,6 +94,8 @@ const uploadBulkResults = async (req, res, next) => {
       creditUnit: Number(creditUnit),
       session,
       semester,
+      performedBy,
+      ipAddress,
     });
 
     return res.status(200).json(response);
@@ -122,7 +128,14 @@ const getAllResults = async (req, res, next) => {
 
 const deleteResult = async (req, res, next) => {
   try {
-    const { message } = await deleteResultService({ resultId: req.params.id });
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+
+    const { message } = await deleteResultService({
+      resultId: req.params.id,
+      performedBy,
+      ipAddress,
+    });
 
     res.status(200).json({ message });
   } catch (error) {

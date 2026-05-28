@@ -2,9 +2,9 @@ const Timetable = require("../models/timetable.model");
 const Student = require("../models/student.model");
 const { normalizeString, normalizeDay } = require("../utils/normalize");
 const { DAYS, TIME_SLOTS } = require("../constants/timetable.constants");
+const logAction = require("../utils/logAction");
 
 const getStudentTimetableService = async ({ userId, session, semester }) => {
-  // Look up the student to get their department and level
   const student = await Student.findById(userId);
   if (!student) throw new Error("Student not found");
 
@@ -22,11 +22,9 @@ const getStudentTimetableService = async ({ userId, session, semester }) => {
   if (semester) query.semester = semester;
 
   const timetable = await Timetable.find(query).sort({ day: 1, time: 1 });
-
   return { data: timetable };
 };
 
-// ── ADMIN: create a single timetable entry ───────────────────────────────────
 const createTimetableEntryService = async ({
   day,
   time,
@@ -38,31 +36,49 @@ const createTimetableEntryService = async ({
   level,
   session,
   semester,
+  performedBy,
+  ipAddress,
 }) => {
   const entry = await Timetable.create({
     day: normalizeDay(day),
     time,
-    courseCode: normalize(courseCode),
-    courseName: normalize(courseName),
-    venue: normalize(venue),
-    lecturer: normalize(lecturer),
-    department: normalize(department),
+    courseCode: normalizeString(courseCode),
+    courseName: normalizeString(courseName),
+    venue: normalizeString(venue),
+    lecturer: normalizeString(lecturer),
+    department: normalizeString(department),
     level,
-    session: normalize(session),
+    session: normalizeString(session),
     semester,
+  });
+
+  await logAction({
+    performedBy,
+    action: "CREATE",
+    targetType: "TIMETABLE",
+    targetId: entry._id,
+    description: `Timetable entry created — ${courseCode} on ${day} at ${time} for ${department} level ${level}`,
+    changes: {
+      before: null,
+      after: { day, time, courseCode, department, level, session, semester },
+    },
+    ipAddress,
   });
 
   return { data: entry };
 };
 
-const createBulkTimetableService = async ({ entries }) => {
+const createBulkTimetableService = async ({
+  entries,
+  performedBy,
+  ipAddress,
+}) => {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error("Entries must be a non-empty array");
   }
 
   const cleanedEntries = [];
   const errors = [];
-
   const seenSlots = new Set();
 
   for (const row of entries) {
@@ -80,7 +96,6 @@ const createBulkTimetableService = async ({ entries }) => {
         semester,
       } = row;
 
-      // 🧠 1. Basic validation
       if (
         !day ||
         !time ||
@@ -94,28 +109,22 @@ const createBulkTimetableService = async ({ entries }) => {
         continue;
       }
 
-      // 🧠 2. Normalize
       day = normalizeDay(day);
-      courseCode = normalize(courseCode);
-      courseName = normalize(courseName);
-      venue = normalize(venue);
-      lecturer = normalize(lecturer);
-      department = normalize(department);
-      session = normalize(session);
-
+      courseCode = normalizeString(courseCode);
+      courseName = normalizeString(courseName);
+      venue = normalizeString(venue);
+      lecturer = normalizeString(lecturer);
+      department = normalizeString(department);
+      session = normalizeString(session);
       level = Number(level);
 
-      // 🧠 3. Detect duplicate INSIDE upload
       const slotKey = `${day}-${time}-${department}-${level}-${session}-${semester}`;
-
       if (seenSlots.has(slotKey)) {
         errors.push({ row, reason: "Duplicate timeslot in upload" });
         continue;
       }
-
       seenSlots.add(slotKey);
 
-      // 🧠 4. Check DB clash
       const exists = await Timetable.findOne({
         day,
         time,
@@ -124,7 +133,6 @@ const createBulkTimetableService = async ({ entries }) => {
         session,
         semester,
       });
-
       if (exists) {
         errors.push({ row, reason: "Timeslot already exists in database" });
         continue;
@@ -147,8 +155,21 @@ const createBulkTimetableService = async ({ entries }) => {
     }
   }
 
-  // 🧠 5. Save only valid ones
   const result = await Timetable.insertMany(cleanedEntries);
+
+  // Log once for the whole batch
+  await logAction({
+    performedBy,
+    action: "CREATE",
+    targetType: "TIMETABLE",
+    targetId: performedBy, // no single target — use admin id as stand-in
+    description: `Bulk timetable upload — ${result.length} entries created, ${errors.length} failed`,
+    changes: {
+      before: null,
+      after: { saved: result.length, failed: errors.length },
+    },
+    ipAddress,
+  });
 
   return {
     data: {
@@ -163,7 +184,6 @@ const createBulkTimetableService = async ({ entries }) => {
   };
 };
 
-// ── ADMIN: view all timetable entries (with optional filters) ─────────────────
 const getAllTimetableService = async ({
   department,
   level,
@@ -196,34 +216,81 @@ const updateTimetableEntryService = async ({
   level,
   session,
   semester,
+  performedBy,
+  ipAddress,
 }) => {
-  const updateData = {};
+  // Grab the old entry so we can log what changed
+  const oldEntry = await Timetable.findById(entryId);
+  if (!oldEntry) throw new Error("Timetable entry not found");
 
+  const updateData = {};
   if (day) updateData.day = normalizeDay(day);
   if (time) updateData.time = time;
-  if (courseCode) updateData.courseCode = normalize(courseCode);
-  if (courseName) updateData.courseName = normalize(courseName);
-  if (venue) updateData.venue = normalize(venue);
-  if (lecturer) updateData.lecturer = normalize(lecturer);
-  if (department) updateData.department = normalize(department);
+  if (courseCode) updateData.courseCode = normalizeString(courseCode);
+  if (courseName) updateData.courseName = normalizeString(courseName);
+  if (venue) updateData.venue = normalizeString(venue);
+  if (lecturer) updateData.lecturer = normalizeString(lecturer);
+  if (department) updateData.department = normalizeString(department);
   if (level) updateData.level = level;
-  if (session) updateData.session = normalize(session);
+  if (session) updateData.session = normalizeString(session);
   if (semester) updateData.semester = semester;
 
   const updated = await Timetable.findByIdAndUpdate(entryId, updateData, {
     new: true,
   });
 
-  if (!updated) {
-    throw new Error("Timetable entry not found");
-  }
+  await logAction({
+    performedBy,
+    action: "UPDATE",
+    targetType: "TIMETABLE",
+    targetId: entryId,
+    description: `Timetable entry updated — ${updated.courseCode} on ${updated.day} at ${updated.time}`,
+    changes: {
+      before: {
+        day: oldEntry.day,
+        time: oldEntry.time,
+        courseCode: oldEntry.courseCode,
+        venue: oldEntry.venue,
+      },
+      after: {
+        day: updated.day,
+        time: updated.time,
+        courseCode: updated.courseCode,
+        venue: updated.venue,
+      },
+    },
+    ipAddress,
+  });
 
   return { data: updated };
 };
 
-const deleteTimetableEntryService = async ({ entryId }) => {
+const deleteTimetableEntryService = async ({
+  entryId,
+  performedBy,
+  ipAddress,
+}) => {
   const entry = await Timetable.findByIdAndDelete(entryId);
   if (!entry) throw new Error("Timetable entry not found");
+
+  await logAction({
+    performedBy,
+    action: "DELETE",
+    targetType: "TIMETABLE",
+    targetId: entryId,
+    description: `Timetable entry deleted — ${entry.courseCode} on ${entry.day} at ${entry.time}`,
+    changes: {
+      before: {
+        day: entry.day,
+        time: entry.time,
+        courseCode: entry.courseCode,
+        venue: entry.venue,
+      },
+      after: null,
+    },
+    ipAddress,
+  });
+
   return { message: "Timetable entry deleted" };
 };
 
@@ -237,7 +304,6 @@ const generateTimetableService = async ({
     throw new Error("Missing required fields");
   }
 
-  // 1. Get courses (department + general)
   const courses = await Course.find({
     $or: [
       { department, level },
@@ -252,7 +318,6 @@ const generateTimetableService = async ({
   const schedule = [];
   const unscheduled = [];
 
-  // 2. Build timetable
   for (const course of courses) {
     let placed = false;
 
@@ -260,27 +325,20 @@ const generateTimetableService = async ({
       if (placed) break;
 
       for (const time of TIME_SLOTS) {
-        // 3. Check ALL clashes in DB
         const clash = await Timetable.findOne({
           day,
           time,
           session,
           semester,
           $or: [
-            // same student group clash
             { department, level },
-
-            // lecturer clash
             { lecturer: course.lecturer },
-
-            // venue clash
             { venue: course.venue },
           ],
         });
 
         if (clash) continue;
 
-        // 4. Assign slot
         schedule.push({
           day,
           time,
@@ -307,7 +365,6 @@ const generateTimetableService = async ({
     }
   }
 
-  // 5. Save valid schedule
   const result = await Timetable.insertMany(schedule);
 
   return {
