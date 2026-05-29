@@ -16,4 +16,6 @@ router.delete(
   deleteAdmin,
 );
 
+router.get("/logs")
+
 module.exports = router;
