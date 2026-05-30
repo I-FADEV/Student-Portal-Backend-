@@ -17,7 +17,7 @@ const {
 } = require("../controllers/admin.controller");
 
 router.delete(
-  "/delete",
+  "/delete/:id",
   protect,
   roleCheck(["admin"], ["general_admin"]),
   deleteAdmin,
