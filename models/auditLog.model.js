@@ -21,7 +21,16 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       required: true,
       // ← Added "RESULT" here — was missing before
-      enum: ["FINANCE", "IDCARD", "COURSE", "TIMETABLE", "ADMIN", "RESULT"],
+      enum: [
+        "FINANCE",
+        "IDCARD",
+        "COURSE",
+        "TIMETABLE",
+        "ADMIN",
+        "RESULT",
+        "FACULTY",
+        "DEPARTMENT",
+      ],
     },
 
     // WHICH specific record was affected (the finance record id, idcard id etc)

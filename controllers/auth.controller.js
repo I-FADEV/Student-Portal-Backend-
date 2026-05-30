@@ -4,6 +4,7 @@ const {
   registerStudent,
   loginStudent,
   refreshToken,
+  changeAdminPasswordService
 } = require("../services/auth.service");
 
 const adminRegister = async (req, res, next) => {
@@ -92,10 +93,33 @@ const refresh = async (req, res, next) => {
   }
 };
 
+const changeAdminPassword = async (req, res, next) => {
+  try {
+    const adminId = req.user.userId;
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+    const { currentPassword, newPassword } = req.body;
+
+    // Bug fix: was calling changePasswordService (undefined) — now calls the correct import
+    const { message } = await changeAdminPasswordService({
+      adminId,
+      currentPassword,
+      newPassword,
+      performedBy,
+      ipAddress,
+    });
+
+    res.status(200).json({ message });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   adminRegister,
   adminLogin,
   studentRegister,
   studentLogin,
   refresh,
+  changeAdminPassword
 };
