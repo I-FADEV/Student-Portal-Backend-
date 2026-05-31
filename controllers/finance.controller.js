@@ -6,15 +6,17 @@ const {
 
 const createFinance = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const { session, semester, items, studentId } = req.body;
-
-    // const userId = req.user.userId;
 
     const { data } = await createFinanceService({
       session,
       semester,
       items,
       studentId,
+      performedBy,
+      ipAddress,
     });
 
     res.status(201).json({ data });
@@ -25,11 +27,15 @@ const createFinance = async (req, res, next) => {
 
 const payFinance = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const { payments } = req.body;
 
     const { finance } = await payFinanceAndSyncIdCardService({
       payments,
       financeId: req.params.id,
+      performedBy,
+      ipAddress,
     });
 
     res.status(200).json({ data: finance });

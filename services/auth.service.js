@@ -6,18 +6,21 @@ const jwt = require("jsonwebtoken");
 const logAction = require("../utils/logAction");
 const AppError = require("../utils/appError");
 
-const registerAdmin = async ({ username, password, adminType }) => {
-  // 2. Check if user already exists
+const registerAdmin = async ({
+  username,
+  password,
+  adminType,
+  performedBy,
+  ipAddress,
+}) => {
   const existingUser = await Admin.findOne({ username });
   if (existingUser) {
     throw new AppError("Username already in use", 409);
   }
 
-  // 3. Hash the password
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  // 4. Save new user with hashed password
   const newUser = await Admin.create({
     username,
     password: hashedPassword,
@@ -25,9 +28,23 @@ const registerAdmin = async ({ username, password, adminType }) => {
     adminType,
   });
 
-  // await logAction({});
+  await logAction({
+    performedBy,
+    action: "CREATE",
+    targetType: "ADMIN",
+    targetId: newUser._id,
+    description: `Admin ${username} was created as ${adminType}`,
+    changes: {
+      before: null,
+      after: {
+        username: newUser.username,
+        role: newUser.role,
+        adminType: newUser.adminType,
+      },
+    },
+    ipAddress,
+  });
 
-  //  Create a JWT token
   const token = generateToken(newUser._id, newUser.role, newUser.adminType);
 
   return {
@@ -38,24 +55,27 @@ const registerAdmin = async ({ username, password, adminType }) => {
   };
 };
 
-const loginAdmin = async ({ username, password }) => {
-  // 2. Find the user by username
+const loginAdmin = async ({ username, password, ipAddress }) => {
   const user = await Admin.findOne({ username });
   if (!user) {
     throw new AppError("Invalid username or password", 400);
   }
 
-  // 3. Compare the given password with the stored hash
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
     throw new AppError("Invalid username or password", 400);
   }
 
-  // logAction({});
+  await logAction({
+    performedBy: user._id,
+    action: "LOGIN",
+    targetType: "ADMIN",
+    targetId: user._id,
+    description: `Admin ${user.username} logged in`,
+    ipAddress,
+  });
 
-  // 4. Create a JWT token
   const token = generateToken(user._id, user.role, user.adminType);
-
   return { token };
 };
 
@@ -88,8 +108,6 @@ const registerStudent = async ({
     level,
   });
 
-  //  await logAction({});
-
   const token = generateToken(newUser._id, newUser.role);
 
   return {
@@ -104,6 +122,10 @@ const registerStudent = async ({
   };
 };
 
+// NOTE: Student login logging is skipped — logAction requires performedBy to be
+// an Admin ObjectId (see auditLog model). Students logging themselves in don't
+// fit that shape. If you want to track student logins later, you'd need a
+// separate StudentAuditLog model or relax the ref on performedBy.
 const loginStudent = async ({ matricNumber, password }) => {
   const user = await Student.findOne({ matricNumber });
   if (!user) {
@@ -115,10 +137,7 @@ const loginStudent = async ({ matricNumber, password }) => {
     throw new AppError("Invalid matric number or password", 400);
   }
 
-  // await logAction({});
-
   const token = generateToken(user._id, user.role);
-
   return { token };
 };
 
@@ -129,13 +148,56 @@ const refreshToken = async ({ oldToken }) => {
 
   try {
     const decoded = jwt.verify(oldToken, process.env.JWT_SECRET);
-
     const newToken = generateToken(decoded.userId, decoded.role);
-
     return { token: newToken };
   } catch (err) {
     throw new AppError("Invalid or expired token", 400);
   }
+};
+
+const changeAdminPasswordService = async ({
+  adminId, // ← fixed: was "AdminId" (capital A) — that was a bug
+  currentPassword,
+  newPassword,
+  performedBy,
+  ipAddress,
+}) => {
+  if (!currentPassword || !newPassword) {
+    throw new Error("Both passwords are required");
+  }
+
+  const admin = await Admin.findById(adminId);
+
+  if (!admin) {
+    throw new Error("User not found");
+  }
+
+  // 1. Verify current password
+  const isMatch = await bcrypt.compare(currentPassword, admin.password);
+  if (!isMatch) {
+    throw new Error("Current password is incorrect");
+  }
+
+  // 2. Prevent same password reuse
+  const samePassword = await bcrypt.compare(newPassword, admin.password);
+  if (samePassword) {
+    throw new Error("New password must be different");
+  }
+
+  // 3. Update password
+  admin.password = newPassword;
+  await admin.save(); // triggers hashing
+
+  await logAction({
+    performedBy,
+    action: "UPDATE",
+    targetType: "ADMIN",
+    targetId: admin._id,
+    description: `Admin ${admin.username} changed their password`,
+    ipAddress,
+  });
+
+  return { message: "Password changed successfully" };
 };
 
 module.exports = {
@@ -144,4 +206,5 @@ module.exports = {
   registerStudent,
   loginStudent,
   refreshToken,
+  changeAdminPasswordService,
 };

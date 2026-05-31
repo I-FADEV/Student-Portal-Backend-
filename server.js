@@ -12,6 +12,7 @@ const financeRoutes = require("./routes/finance.routes");
 const timetableRoutes = require("./routes/timetable.routes");
 const courseRoutes = require("./routes/course.routes");
 const resultRoutes = require("./routes/result.routes");
+const adminRoutes = require("./routes/admin.routes");
 
 const errorHandler = require("./middleware/error.middleware");
 const { generalLimiter, authLimiter } = require("./config/rateLimiter");
@@ -44,6 +45,7 @@ app.use("/finance", financeRoutes);
 app.use("/timetable", timetableRoutes);
 app.use("/courses", courseRoutes);
 app.use("/results", resultRoutes);
+app.use("/admin", adminRoutes);
 
 // Test route
 app.get("/", (req, res) => {

@@ -6,7 +6,6 @@ const {
   deleteCourseService,
 } = require("../services/course.service");
 
-//STUDENT
 const getMyCourses = async (req, res, next) => {
   try {
     const { session, semester } = req.query;
@@ -23,9 +22,10 @@ const getMyCourses = async (req, res, next) => {
   }
 };
 
-// ── ADMIN ─────────────────────────────────────────────────────────────────────
 const createCourse = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const { name, code, creditUnit, department, level, semester, session } =
       req.body;
 
@@ -37,6 +37,8 @@ const createCourse = async (req, res, next) => {
       level,
       semester,
       session,
+      performedBy,
+      ipAddress,
     });
 
     res.status(201).json({ data });
@@ -47,9 +49,15 @@ const createCourse = async (req, res, next) => {
 
 const createBulkCourses = async (req, res, next) => {
   try {
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
     const { courses } = req.body;
 
-    const { data, count } = await createBulkCoursesService({ courses });
+    const { data, count } = await createBulkCoursesService({
+      courses,
+      performedBy,
+      ipAddress,
+    });
 
     res.status(201).json({ data, count });
   } catch (error) {
@@ -76,7 +84,14 @@ const getAllCourses = async (req, res, next) => {
 
 const deleteCourse = async (req, res, next) => {
   try {
-    const { message } = await deleteCourseService({ courseId: req.params.id });
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+
+    const { message } = await deleteCourseService({
+      courseId: req.params.id,
+      performedBy,
+      ipAddress,
+    });
 
     res.status(200).json({ message });
   } catch (error) {

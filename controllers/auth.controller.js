@@ -4,20 +4,25 @@ const {
   registerStudent,
   loginStudent,
   refreshToken,
+  changeAdminPasswordService
 } = require("../services/auth.service");
 
 const adminRegister = async (req, res, next) => {
   try {
-    // 1. Pull data from request body
+    // Bug fix: was "const { ipAddress } = req.ip" and "const { performedBy } = req.user.userId"
+    // Both were destructuring primitives, which gives undefined. Fixed below:
+    const ipAddress = req.ip;
+    const performedBy = req.user.userId;
     const { username, password, adminType } = req.body;
 
     const { user, token, role, type } = await registerAdmin({
       username,
       password,
       adminType,
+      performedBy,
+      ipAddress,
     });
 
-    // 5. Send back success (never send the password back)
     res.status(201).json({
       message: "Account created successfully!",
       user,
@@ -32,10 +37,10 @@ const adminRegister = async (req, res, next) => {
 
 const adminLogin = async (req, res, next) => {
   try {
-    // 1. Pull credentials from request body
+    const ipAddress = req.ip;
     const { username, password } = req.body;
 
-    const { token } = await loginAdmin({ username, password });
+    const { token } = await loginAdmin({ username, password, ipAddress });
 
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
@@ -43,7 +48,6 @@ const adminLogin = async (req, res, next) => {
   }
 };
 
-// Register
 const studentRegister = async (req, res, next) => {
   try {
     const { matricNumber, password, department, level } = req.body;
@@ -58,24 +62,20 @@ const studentRegister = async (req, res, next) => {
     res.status(201).json({
       message: "Account created successfully!",
       user,
-      token, // remove if you truly want verification first
+      token,
     });
   } catch (error) {
     next(error);
   }
 };
 
-//  LOGIN
 const studentLogin = async (req, res, next) => {
   try {
     const { matricNumber, password } = req.body;
 
     const { token } = await loginStudent({ matricNumber, password });
 
-    res.status(200).json({
-      message: "Login successful",
-      token,
-    });
+    res.status(200).json({ message: "Login successful", token });
   } catch (error) {
     next(error);
   }
@@ -93,10 +93,33 @@ const refresh = async (req, res, next) => {
   }
 };
 
+const changeAdminPassword = async (req, res, next) => {
+  try {
+    const adminId = req.user.userId;
+    const performedBy = req.user.userId;
+    const ipAddress = req.ip;
+    const { currentPassword, newPassword } = req.body;
+
+    // Bug fix: was calling changePasswordService (undefined) — now calls the correct import
+    const { message } = await changeAdminPasswordService({
+      adminId,
+      currentPassword,
+      newPassword,
+      performedBy,
+      ipAddress,
+    });
+
+    res.status(200).json({ message });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   adminRegister,
   adminLogin,
   studentRegister,
   studentLogin,
   refresh,
+  changeAdminPassword
 };

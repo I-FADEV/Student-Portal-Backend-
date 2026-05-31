@@ -22,11 +22,11 @@ const adminRegisterSchema = joi.object({
     }),
   adminType: joi
     .string()
-    .valid("general_admin", "finance_admin", "idcard_admin", "timetable_admin")
+    .valid("general_admin", "finance_admin", "idcard_admin", "timetable_admin","registry_admin")
     .required()
     .messages({
       "any.only":
-        "adminType must be general_admin, finance_admin, timetable_admin or idcard_admin",
+        "adminType must be general_admin, finance_admin, timetable_admin, registry_admin or idcard_admin",
       "any.required": "adminType is required",
     }),
 });

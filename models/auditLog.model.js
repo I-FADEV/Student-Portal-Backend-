@@ -20,7 +20,17 @@ const auditLogSchema = new mongoose.Schema(
     targetType: {
       type: String,
       required: true,
-      enum: ["FINANCE", "IDCARD", "COURSE", "TIMETABLE"],
+      // ← Added "RESULT" here — was missing before
+      enum: [
+        "FINANCE",
+        "IDCARD",
+        "COURSE",
+        "TIMETABLE",
+        "ADMIN",
+        "RESULT",
+        "FACULTY",
+        "DEPARTMENT",
+      ],
     },
 
     // WHICH specific record was affected (the finance record id, idcard id etc)
@@ -36,17 +46,16 @@ const auditLogSchema = new mongoose.Schema(
       default: null, // null for actions not related to a student eg adding a course
     },
 
-    // HUMAN READABLE summary — what the general admin sees in the dashboard
+    // HUMAN READABLE summary
     description: {
       type: String,
       required: true,
-      // e.g. "Finance admin updated tuition payment for student IFAT/26/CSC/0187"
     },
 
     // WHAT CHANGED — before and after values
     changes: {
-      before: { type: Object, default: null }, // e.g. { paidAmount: 0, status: "Unpaid" }
-      after: { type: Object, default: null }, // e.g. { paidAmount: 5000, status: "Partial" }
+      before: { type: Object, default: null },
+      after: { type: Object, default: null },
     },
 
     ipAddress: {

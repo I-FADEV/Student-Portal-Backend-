@@ -15,6 +15,7 @@ const {
   studentRegister,
   studentLogin,
   refresh,
+  changeAdminPassword,
 } = require("../controllers/auth.controller");
 
 //admin
@@ -27,6 +28,13 @@ router.post(
 );
 
 router.post("/admin/login", validate(adminLoginSchema), adminLogin);
+
+router.put(
+  "/change-password",
+  protect,
+  roleCheck(["admin"]),
+  changeAdminPassword,
+);
 
 //both
 router.post("/refresh", refresh);

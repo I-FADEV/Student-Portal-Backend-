@@ -1,13 +1,12 @@
 const IdCard = require("../models/idcard.model");
-const Student = require("../models/student.model"); // adjust path if needed
+const Student = require("../models/student.model");
+const logAction = require("../utils/logAction");
 
 // ── STUDENT: view own ID card record ─────────────────────────────────────────
-// Creates the record automatically on first access (feePaid: false by default)
 const viewStudentIdCardService = async ({ studentId }) => {
   let idCard = await IdCard.findOne({ studentId });
 
   if (!idCard) {
-    // Auto-create on first visit so feePaid flag can be managed by bursar
     idCard = await IdCard.create({ studentId });
   }
 
@@ -33,21 +32,18 @@ const submitIdCardService = async ({
   if (!idCard)
     throw new Error("ID card record not found. Please refresh and try again.");
 
-  // Guard: fee must be paid
   if (!idCard.feePaid) {
     throw new Error(
       "Your ID card fee has not been confirmed yet. Please pay at the Bursar's office first.",
     );
   }
 
-  // Guard: one-time submission — can only submit if unsubmitted or rejected
   if (idCard.status === "pending" || idCard.status === "collected") {
     throw new Error(
       "You have already submitted your ID card request and it cannot be changed at this time.",
     );
   }
 
-  // Update record with submitted data
   idCard.photoURL = photoURL;
   idCard.fullName = fullName;
   idCard.nationality = nationality;
@@ -67,9 +63,12 @@ const submitIdCardService = async ({
   return { data: idCard };
 };
 
-// ── BURSAR: mark ID card fee as paid for a student ────────────────────────────
-const markFeePaidService = async ({ studentId }) => {
-  // Find or create the record
+// ── BURSAR: mark ID card fee as paid ─────────────────────────────────────────
+const markFeePaidService = async ({
+  studentId,
+  performedBy,
+  ipAddress,
+}) => {
   let idCard = await IdCard.findOne({ studentId });
 
   if (!idCard) {
@@ -89,11 +88,25 @@ const markFeePaidService = async ({ studentId }) => {
     await idCard.save();
   }
 
+  await logAction({
+    performedBy,
+    action: "UPDATE",
+    targetType: "IDCARD",
+    targetId: idCard._id,
+    affectedStudent: studentId,
+    description: `ID card fee marked as paid for student`,
+    changes: {
+      before: { feePaid: false },
+      after: { feePaid: true },
+    },
+    ipAddress,
+  });
+
   return { data: idCard, message: "ID card fee marked as paid successfully." };
 };
 
-// ── TAC ADMIN: mark ID card as collected ──────────────────────────────────────
-const markCollectedService = async ({ idCardId }) => {
+// ── TAC ADMIN: mark ID card as collected ─────────────────────────────────────
+const markCollectedService = async ({ idCardId, performedBy, ipAddress }) => {
   const idCard = await IdCard.findById(idCardId);
   if (!idCard) throw new Error("ID card record not found.");
 
@@ -107,12 +120,30 @@ const markCollectedService = async ({ idCardId }) => {
   idCard.collectedAt = new Date();
   await idCard.save();
 
+  await logAction({
+    performedBy,
+    action: "UPDATE",
+    targetType: "IDCARD",
+    targetId: idCardId,
+    affectedStudent: idCard.studentId,
+    description: `ID card marked as collected`,
+    changes: {
+      before: { status: "pending" },
+      after: { status: "collected" },
+    },
+    ipAddress,
+  });
+
   return { data: idCard, message: "ID card marked as collected." };
 };
 
 // ── TAC ADMIN: reject an ID card submission ───────────────────────────────────
-// This resets status to "unsubmitted" so the student can resubmit
-const rejectIdCardService = async ({ idCardId, reason }) => {
+const rejectIdCardService = async ({
+  idCardId,
+  reason,
+  performedBy,
+  ipAddress,
+}) => {
   const idCard = await IdCard.findById(idCardId);
   if (!idCard) throw new Error("ID card record not found.");
 
@@ -120,14 +151,28 @@ const rejectIdCardService = async ({ idCardId, reason }) => {
     throw new Error(`Cannot reject — current status is "${idCard.status}".`);
   }
 
-  idCard.status = "unsubmitted"; // unlocks form for resubmission
+  idCard.status = "unsubmitted";
   idCard.rejectedAt = new Date();
   idCard.rejectionReason = reason || "No reason provided.";
-  // Clear submitted photo/data so student must resubmit cleanly
   idCard.photoURL = null;
   idCard.submittedAt = null;
 
   await idCard.save();
+
+  await logAction({
+    performedBy,
+    action: "UPDATE",
+    targetType: "IDCARD",
+    targetId: idCardId,
+    affectedStudent: idCard.studentId,
+    description: `ID card rejected — reason: ${reason || "No reason provided"}`,
+    changes: {
+      before: { status: "pending" },
+      after: { status: "unsubmitted", rejectionReason: reason },
+    },
+    ipAddress,
+  });
+
   return {
     data: idCard,
     message: "ID card rejected. Student can now resubmit.",

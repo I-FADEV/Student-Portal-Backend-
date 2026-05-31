@@ -17,7 +17,7 @@ const timetableSchema = new mongoose.Schema(
     time: {
       type: String,
       required: true,
-      enum: TIME_SLOTS, // strictly one of the 4 fixed slots
+      enum: TIME_SLOTS,
     },
     courseCode: {
       type: String,
@@ -28,6 +28,10 @@ const timetableSchema = new mongoose.Schema(
       required: true,
     },
     lecturer: {
+      type: String,
+      default: null,
+    },
+    venue: {
       type: String,
       default: null,
     },
@@ -50,6 +54,12 @@ const timetableSchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+// prevents duplicate class slots
+timetableSchema.index(
+  { day: 1, time: 1, department: 1, level: 1, session: 1, semester: 1 },
+  { unique: true }
 );
 
 module.exports = mongoose.model("Timetable", timetableSchema);

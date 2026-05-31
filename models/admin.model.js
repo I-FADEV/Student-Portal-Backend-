@@ -12,6 +12,7 @@ const adminSchema = new mongoose.Schema(
         "finance_admin",
         "idcard_admin",
         "timetable_admin",
+        "registry_admin",
       ],
       required: true,
     },
