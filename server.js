@@ -22,7 +22,7 @@ connectDB();
 // Middleware
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://student-portal-frontend-seven.vercel.app",
+  "https://student-portal-frontend-kappa.vercel.app",
 ];
 
 app.use(
