@@ -23,7 +23,10 @@ const deleteAdminService = async ({ adminId, performedBy, ipAddress }) => {
 
 const checkLogsService = async ({ page, limit, skip }) => {
   const [logs, totalLogs] = await Promise.all([
-    Log.find().skip(skip).limit(limit),
+    Log.find()
+      .sort({ createdAt: -1 }) // 👈 ADD THIS
+      .skip(skip)
+      .limit(limit),
     Log.countDocuments(),
   ]);
 

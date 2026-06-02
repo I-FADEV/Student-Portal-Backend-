@@ -192,8 +192,9 @@ const changeAdminPasswordService = async ({
   }
 
   // 3. Update password
-  admin.password = newPassword;
-  await admin.save(); // triggers hashing
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  admin.password = hashedPassword;
+  await admin.save();
 
   await logAction({
     performedBy,
