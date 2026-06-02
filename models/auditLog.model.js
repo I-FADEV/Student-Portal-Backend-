@@ -9,6 +9,19 @@ const auditLogSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ── ADDED: Admin type (general_admin, registry_admin, etc.) ────────────────
+    adminType: {
+      type: String,
+      enum: ["general_admin", "registry_admin", "finance_admin", "idcard_admin", "timetable_admin"],
+      default: null,
+    },
+
+    // ── ADDED: Admin username (for display) ──────────────────────────────────
+    adminUsername: {
+      type: String,
+      default: null,
+    },
+
     // WHAT they did
     action: {
       type: String,
@@ -20,7 +33,6 @@ const auditLogSchema = new mongoose.Schema(
     targetType: {
       type: String,
       required: true,
-      // ← Added "RESULT" here — was missing before
       enum: [
         "FINANCE",
         "IDCARD",
@@ -63,12 +75,13 @@ const auditLogSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 // Indexes for common queries
 auditLogSchema.index({ performedBy: 1 }); // "show all actions by this admin"
 auditLogSchema.index({ affectedStudent: 1 }); // "show all actions on this student"
 auditLogSchema.index({ createdAt: -1 }); // "show most recent logs first"
+auditLogSchema.index({ adminType: 1 }); // "show all actions by admin type"
 
 module.exports = mongoose.model("AuditLog", auditLogSchema);

@@ -1,4 +1,5 @@
 const AuditLog = require("../models/auditLog.model");
+const Admin = require("../models/admin.model");
 
 const logAction = async ({
   performedBy,
@@ -11,8 +12,23 @@ const logAction = async ({
   ipAddress = null,
 }) => {
   try {
+    // ── LOOK UP the admin to get adminType and username ──────────────────────
+    let adminType = null;
+    let adminUsername = null;
+
+    if (performedBy) {
+      const admin = await Admin.findById(performedBy);
+      if (admin) {
+        adminType = admin.adminType;
+        adminUsername = admin.username;
+      }
+    }
+
+    // ── CREATE the audit log with all fields ─────────────────────────────────
     await AuditLog.create({
       performedBy,
+      adminType,          // ← NOW STORED
+      adminUsername,      // ← NOW STORED
       action,
       targetType,
       targetId,
