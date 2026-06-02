@@ -1,10 +1,10 @@
 const joi = require("joi");
 
-const matricPattern = /^I-FAT\/\d{2}\/[A-Z]{3,5}\/\d{4}$/i;
+const matricPattern = /^I-FAT\/\d{2}\/[A-Z]{3,5}\/\d{4}(TF)?$/i;
 
 const adminRegisterSchema = joi.object({
-  username: joi.string().min(2).max(50).required().messages({
-    "string.min": "Name must be at least 2 characters",
+  username: joi.string().min(5).max(50).required().messages({
+    "string.min": "Name must be at least 5 characters",
     "string.max": "Name cannot exceed 50 characters",
     "any.required": "Name is required",
   }),
@@ -41,10 +41,17 @@ const adminLoginSchema = joi.object({
 });
 
 const studentRegisterSchema = joi.object({
+
+  name: joi.string().min(5).max(50).required().messages({
+    "string.min": "Name must be at least 5 characters",
+    "string.max": "Name cannot exceed 50 characters",
+    "any.required": "Name is required",
+  }),
+
   matricNumber: joi.string().pattern(matricPattern).required().messages({
     "string.pattern.base":
       "Matric number must follow the format: I-FAT/26/CSC/0187",
-    "any.required": "Matric number is required",
+    "any.required": "Matric number must follow the format: I-FAT/26/CSC/0187 (or I-FAT/26/CSC/0187TF for transfer students)",
   }),
 
   password: joi.string().min(6).required().messages({
@@ -61,6 +68,10 @@ const studentRegisterSchema = joi.object({
       "any.required": "Please confirm your password",
     }),
 
+  faculty: joi.string().required().messages({
+    "any.required": "Department is required",
+  }),
+
   department: joi.string().required().messages({
     "any.required": "Department is required",
   }),
@@ -74,7 +85,7 @@ const studentRegisterSchema = joi.object({
 const studentLoginSchema = joi.object({
   matricNumber: joi.string().pattern(matricPattern).required().messages({
     "string.pattern.base":
-      "Matric number must follow the format: I-FAT/26/CSC/0187",
+      "Matric number must follow the format: I-FAT/26/CSC/0187 (or I-FAT/26/CSC/0187TF for transfer students)",
     "any.required": "Matric number is required",
   }),
   password: joi.string().required().messages({

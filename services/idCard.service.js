@@ -4,14 +4,14 @@ const logAction = require("../utils/logAction");
 
 // ── STUDENT: view own ID card record ─────────────────────────────────────────
 const viewStudentIdCardService = async ({ studentId }) => {
-  let idCard = await IdCard.findOne({ studentId });
+  let idCard = await IdCard.findOne({ student });
 
   if (!idCard) {
     idCard = await IdCard.create({ studentId });
   }
 
   return { data: idCard };
-};
+};   
 
 // ── STUDENT: submit ID card form ──────────────────────────────────────────────
 const submitIdCardService = async ({
@@ -27,7 +27,7 @@ const submitIdCardService = async ({
   level,
   session,
 }) => {
-  const idCard = await IdCard.findOne({ studentId });
+  const idCard = await IdCard.findOne({ student });
 
   if (!idCard)
     throw new Error("ID card record not found. Please refresh and try again.");
@@ -65,7 +65,7 @@ const submitIdCardService = async ({
 
 // ── BURSAR: mark ID card fee as paid ─────────────────────────────────────────
 const markFeePaidService = async ({ studentId, performedBy, ipAddress }) => {
-  let idCard = await IdCard.findOne({ studentId });
+  let idCard = await IdCard.findOne({ student });
 
   if (!idCard) {
     idCard = await IdCard.create({
@@ -181,7 +181,7 @@ const getAllIdCardsService = async ({ status }) => {
   if (status) query.status = status;
 
   const idCards = await IdCard.find(query)
-    .populate("studentId", "matricNumber name department level")
+    .populate("student", "matricNumber name department level")
     .sort({ submittedAt: -1, createdAt: -1 });
 
   return { data: idCards };

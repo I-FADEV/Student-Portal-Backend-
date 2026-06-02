@@ -178,33 +178,48 @@ const getAllResultsService = async ({ courseCode, session, semester }) => {
   if (semester)   query.semester   = semester;
 
   const results = await Result.find(query)
-    .populate("studentId", "matricNumber name department level")
+    .populate("student", "matricNumber name department level")
     .sort({ courseCode: 1, session: -1 });
 
   return { data: results };
 };
 
 // ── TIMETABLE ADMIN: get results for a specific student (admin search) ────────
-const getResultsByStudentService = async ({ matricNumber, session, semester }) => {
-  if (!matricNumber) throw new Error("Matric number is required");
+const getResultsByStudentService = async ({ query, session, semester }) => {
+  if (!query) {
+    throw new Error("Search query is required");
+  }
 
-  const student = await Student.findOne({ matricNumber });
-  if (!student) throw new Error(`Student with matric number "${matricNumber}" not found`);
+  const student = await Student.findOne({
+    $or: [
+      { matricNumber: { $regex: query, $options: "i" } },
+      { name: { $regex: query, $options: "i" } },
+    ],
+  });
 
-  const query = { studentId: student._id };
-  if (session)  query.session  = session;
-  if (semester) query.semester = semester;
+  if (!student) {
+    throw new Error(`Student "${query}" not found`);
+  }
 
-  const results = await Result.find(query).sort({ courseCode: 1 });
+  const resultQuery = {
+    studentId: student._id,
+  };
+
+  if (session) resultQuery.session = session;
+  if (semester) resultQuery.semester = semester;
+
+  const results = await Result.find(resultQuery).sort({
+    courseCode: 1,
+  });
 
   return {
     data: results,
     student: {
-      _id:          student._id,
-      name:         student.name,
+      _id: student._id,
+      name: student.name,
       matricNumber: student.matricNumber,
-      department:   student.department,
-      level:        student.level,
+      department: student.department,
+      level: student.level,
     },
   };
 };

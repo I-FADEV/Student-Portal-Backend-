@@ -124,10 +124,10 @@ const getAllResults = async (req, res, next) => {
 // ── TIMETABLE ADMIN: get results for a specific student ───────────────────────
 const getResultsByStudent = async (req, res, next) => {
   try {
-    const { matricNumber, session, semester } = req.query;
+    const { query, session, semester } = req.query;
 
     const { data, student } = await getResultsByStudentService({
-      matricNumber,
+      query,
       session,
       semester,
     });
