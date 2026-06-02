@@ -1,24 +1,23 @@
-// NOTE: Before this works you need to add "RESULT" to the targetType enum
-// in auditLog.model.js — it's not there yet.
+// NOTE: Add "RESULT" to the targetType enum in auditLog.model.js if not done yet.
 
-const Result = require("../models/result.model");
-const Student = require("../models/student.model");
+const Result         = require("../models/result.model");
+const Student        = require("../models/student.model");
 const calculateGrade = require("../utils/resultCalculator");
-const logAction = require("../utils/logAction");
+const logAction      = require("../utils/logAction");
 
+// ── STUDENT: view own results ─────────────────────────────────────────────────
 const getStudentResultsService = async ({ userId, session, semester }) => {
   const query = { studentId: userId };
-  if (session) query.session = session;
+  if (session)  query.session  = session;
   if (semester) query.semester = semester;
 
   const results = await Result.find(query).sort({
-    session: -1,
-    semester: 1,
-    courseCode: 1,
+    session: -1, semester: 1, courseCode: 1,
   });
   return { data: results };
 };
 
+// ── TIMETABLE ADMIN: upload single result ─────────────────────────────────────
 const uploadSingleResultService = async ({
   matricNumber,
   courseCode,
@@ -31,25 +30,19 @@ const uploadSingleResultService = async ({
   performedBy,
   ipAddress,
 }) => {
-  if (test > 40)
-    throw new Error(`Test score for ${matricNumber} exceeds maximum of 30`);
-  if (exam > 60)
-    throw new Error(`Exam score for ${matricNumber} exceeds maximum of 70`);
-  if (test < 0)
-    throw new Error(`Test score for ${matricNumber} cannot be negative`);
-  if (exam < 0)
-    throw new Error(`Exam score for ${matricNumber} cannot be negative`);
+  // ── Validation ────────────────────────────────────────────────────────────
+  if (test  < 0 || test  > 40) throw new Error(`Test score for ${matricNumber} must be between 0 and 40`);
+  if (exam  < 0 || exam  > 60) throw new Error(`Exam score for ${matricNumber} must be between 0 and 60`);
 
   const student = await Student.findOne({ matricNumber });
-  if (!student)
-    throw new Error(`Student with matric number ${matricNumber} not found`);
+  if (!student) throw new Error(`Student with matric number ${matricNumber} not found`);
 
   const total = test + exam;
   const grade = calculateGrade(total);
 
   const result = await Result.findOneAndUpdate(
     {
-      studentId: student._id,
+      studentId:  student._id,
       courseCode: courseCode.toUpperCase(),
       session,
       semester,
@@ -60,14 +53,14 @@ const uploadSingleResultService = async ({
 
   await logAction({
     performedBy,
-    action: "CREATE",
-    targetType: "RESULT",
-    targetId: result._id,
+    action:          "CREATE",
+    targetType:      "RESULT",
+    targetId:        result._id,
     affectedStudent: student._id,
-    description: `Result uploaded for ${matricNumber} — ${courseCode.toUpperCase()} (${session} ${semester})`,
+    description:     `Result uploaded for ${matricNumber} — ${courseCode.toUpperCase()} (${session} ${semester})`,
     changes: {
       before: null,
-      after: { test, exam, total, grade },
+      after:  { test, exam, total, grade },
     },
     ipAddress,
   });
@@ -75,6 +68,7 @@ const uploadSingleResultService = async ({
   return { data: result };
 };
 
+// ── TIMETABLE ADMIN: bulk upload results ──────────────────────────────────────
 const uploadBulkResultsService = async ({
   results,
   courseCode,
@@ -90,7 +84,7 @@ const uploadBulkResultsService = async ({
   }
 
   const processed = [];
-  const errors = [];
+  const errors    = [];
 
   for (const row of results) {
     try {
@@ -108,16 +102,12 @@ const uploadBulkResultsService = async ({
         errors.push({ matricNumber, reason: "Invalid score format" });
         continue;
       }
-      if (testNum > 40) {
-        errors.push({ matricNumber, reason: "Test score exceeds 40" });
+      if (testNum < 0 || testNum > 40) {
+        errors.push({ matricNumber, reason: "Test score must be between 0 and 40" });
         continue;
       }
-      if (examNum > 60) {
-        errors.push({ matricNumber, reason: "Exam score exceeds 60" });
-        continue;
-      }
-      if (testNum < 0 || examNum < 0) {
-        errors.push({ matricNumber, reason: "Scores cannot be negative" });
+      if (examNum < 0 || examNum > 60) {
+        errors.push({ matricNumber, reason: "Exam score must be between 0 and 60" });
         continue;
       }
 
@@ -132,16 +122,16 @@ const uploadBulkResultsService = async ({
 
       const saved = await Result.findOneAndUpdate(
         {
-          studentId: student._id,
+          studentId:  student._id,
           courseCode: courseCode.toUpperCase(),
           session,
-          semester: semester.toUpperCase(),
+          semester,                   // ← FIX: was semester.toUpperCase() which corrupted "First"→"FIRST"
         },
         {
-          courseName: courseName.toUpperCase(),
+          courseName: courseName,
           creditUnit,
-          test: testNum,
-          exam: examNum,
+          test:  testNum,
+          exam:  examNum,
           total,
           grade,
         },
@@ -154,16 +144,15 @@ const uploadBulkResultsService = async ({
     }
   }
 
-  // Log once for the whole bulk upload rather than once per student
   await logAction({
     performedBy,
-    action: "CREATE",
-    targetType: "RESULT",
-    targetId: performedBy, // no single target — use the admin's own id as a stand-in
+    action:      "CREATE",
+    targetType:  "RESULT",
+    targetId:    performedBy,
     description: `Bulk result upload for ${courseCode.toUpperCase()} (${session} ${semester}) — ${processed.length} saved, ${errors.length} failed`,
     changes: {
       before: null,
-      after: { saved: processed.length, failed: errors.length },
+      after:  { saved: processed.length, failed: errors.length },
     },
     ipAddress,
   });
@@ -173,19 +162,20 @@ const uploadBulkResultsService = async ({
       processed,
       errors,
       summary: {
-        total: results.length,
-        saved: processed.length,
+        total:  results.length,
+        saved:  processed.length,
         failed: errors.length,
       },
     },
   };
 };
 
+// ── TIMETABLE ADMIN: get all results (filter by course/session/semester) ──────
 const getAllResultsService = async ({ courseCode, session, semester }) => {
   const query = {};
   if (courseCode) query.courseCode = courseCode.toUpperCase();
-  if (session) query.session = session;
-  if (semester) query.semester = semester;
+  if (session)    query.session    = session;
+  if (semester)   query.semester   = semester;
 
   const results = await Result.find(query)
     .populate("studentId", "matricNumber name department level")
@@ -194,20 +184,92 @@ const getAllResultsService = async ({ courseCode, session, semester }) => {
   return { data: results };
 };
 
+// ── TIMETABLE ADMIN: get results for a specific student (admin search) ────────
+const getResultsByStudentService = async ({ matricNumber, session, semester }) => {
+  if (!matricNumber) throw new Error("Matric number is required");
+
+  const student = await Student.findOne({ matricNumber });
+  if (!student) throw new Error(`Student with matric number "${matricNumber}" not found`);
+
+  const query = { studentId: student._id };
+  if (session)  query.session  = session;
+  if (semester) query.semester = semester;
+
+  const results = await Result.find(query).sort({ courseCode: 1 });
+
+  return {
+    data: results,
+    student: {
+      _id:          student._id,
+      name:         student.name,
+      matricNumber: student.matricNumber,
+      department:   student.department,
+      level:        student.level,
+    },
+  };
+};
+
+// ── TIMETABLE ADMIN: update a single result ───────────────────────────────────
+const updateResultService = async ({
+  resultId,
+  test,
+  exam,
+  performedBy,
+  ipAddress,
+}) => {
+  const result = await Result.findById(resultId);
+  if (!result) throw new Error("Result not found");
+
+  const before = { test: result.test, exam: result.exam, total: result.total, grade: result.grade };
+
+  if (test !== undefined && test !== null) {
+    const t = Number(test);
+    if (isNaN(t) || t < 0 || t > 40) throw new Error("Test score must be between 0 and 40");
+    result.test = t;
+  }
+  if (exam !== undefined && exam !== null) {
+    const e = Number(exam);
+    if (isNaN(e) || e < 0 || e > 60) throw new Error("Exam score must be between 0 and 60");
+    result.exam = e;
+  }
+
+  result.total = result.test + result.exam;
+  result.grade = calculateGrade(result.total);
+
+  await result.save();
+
+  await logAction({
+    performedBy,
+    action:          "UPDATE",
+    targetType:      "RESULT",
+    targetId:        resultId,
+    affectedStudent: result.studentId,
+    description:     `Result updated — ${result.courseCode} (${result.session} ${result.semester})`,
+    changes: {
+      before,
+      after: { test: result.test, exam: result.exam, total: result.total, grade: result.grade },
+    },
+    ipAddress,
+  });
+
+  return { data: result };
+};
+
+// ── TIMETABLE ADMIN: delete a result ─────────────────────────────────────────
 const deleteResultService = async ({ resultId, performedBy, ipAddress }) => {
   const result = await Result.findByIdAndDelete(resultId);
   if (!result) throw new Error("Result not found");
 
   await logAction({
     performedBy,
-    action: "DELETE",
-    targetType: "RESULT",
-    targetId: resultId,
+    action:          "DELETE",
+    targetType:      "RESULT",
+    targetId:        resultId,
     affectedStudent: result.studentId,
-    description: `Result deleted — ${result.courseCode} (${result.session} ${result.semester})`,
+    description:     `Result deleted — ${result.courseCode} (${result.session} ${result.semester})`,
     changes: {
       before: { test: result.test, exam: result.exam, grade: result.grade },
-      after: null,
+      after:  null,
     },
     ipAddress,
   });
@@ -220,5 +282,7 @@ module.exports = {
   uploadSingleResultService,
   uploadBulkResultsService,
   getAllResultsService,
+  getResultsByStudentService,
+  updateResultService,
   deleteResultService,
 };

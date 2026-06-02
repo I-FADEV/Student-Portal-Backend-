@@ -5,14 +5,13 @@ const {
   markCollectedService,
   rejectIdCardService,
   getAllIdCardsService,
+  getIdCardStatsService,
 } = require("../services/idCard.service");
 
 // ── STUDENT: view own ID card ─────────────────────────────────────────────────
 const viewIdCard = async (req, res, next) => {
   try {
-    const { data } = await viewStudentIdCardService({
-      studentId: req.user.userId,
-    });
+    const { data } = await viewStudentIdCardService({ studentId: req.user.userId });
     res.status(200).json({ data });
   } catch (error) {
     next(error);
@@ -27,6 +26,7 @@ const createIdcard = async (req, res, next) => {
     }
 
     const photoURL = req.file.filename;
+
     const {
       fullName,
       nationality,
@@ -62,16 +62,11 @@ const createIdcard = async (req, res, next) => {
 // ── BURSAR ADMIN: mark fee as paid ────────────────────────────────────────────
 const markFeePaid = async (req, res, next) => {
   try {
-    const performedBy = req.user.userId;
-    const ipAddress = req.ip;
-    const studentId = req.params.studentId;
-
     const { data, message } = await markFeePaidService({
-      studentId,
-      performedBy,
-      ipAddress,
+      studentId:   req.params.studentId,
+      performedBy: req.user.userId,
+      ipAddress:   req.ip,
     });
-
     res.status(200).json({ data, message });
   } catch (error) {
     next(error);
@@ -81,15 +76,11 @@ const markFeePaid = async (req, res, next) => {
 // ── TAC ADMIN: mark collected ─────────────────────────────────────────────────
 const markCollected = async (req, res, next) => {
   try {
-    const performedBy = req.user.userId;
-    const ipAddress = req.ip;
-
     const { data, message } = await markCollectedService({
-      idCardId: req.params.id,
-      performedBy,
-      ipAddress,
+      idCardId:    req.params.id,
+      performedBy: req.user.userId,
+      ipAddress:   req.ip,
     });
-
     res.status(200).json({ data, message });
   } catch (error) {
     next(error);
@@ -99,17 +90,13 @@ const markCollected = async (req, res, next) => {
 // ── TAC ADMIN: reject ID card ─────────────────────────────────────────────────
 const rejectIdCard = async (req, res, next) => {
   try {
-    const performedBy = req.user.userId;
-    const ipAddress = req.ip;
     const { reason } = req.body;
-
     const { data, message } = await rejectIdCardService({
-      idCardId: req.params.id,
+      idCardId:    req.params.id,
       reason,
-      performedBy,
-      ipAddress,
+      performedBy: req.user.userId,
+      ipAddress:   req.ip,
     });
-
     res.status(200).json({ data, message });
   } catch (error) {
     next(error);
@@ -120,9 +107,17 @@ const rejectIdCard = async (req, res, next) => {
 const getAllIdCards = async (req, res, next) => {
   try {
     const { status } = req.query;
+    const { data }   = await getAllIdCardsService({ status });
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    const { data } = await getAllIdCardsService({ status });
-
+// ── TAC ADMIN: dashboard stats ────────────────────────────────────────────────
+const getIdCardStats = async (req, res, next) => {
+  try {
+    const { data } = await getIdCardStatsService();
     res.status(200).json({ data });
   } catch (error) {
     next(error);
@@ -136,4 +131,5 @@ module.exports = {
   markCollected,
   rejectIdCard,
   getAllIdCards,
+  getIdCardStats,
 };

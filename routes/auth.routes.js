@@ -1,7 +1,7 @@
 const express = require("express");
-const router = express.Router();
-const validate = require("../middleware/validate.middleware");
-const protect = require("../middleware/auth.middleware");
+const router  = express.Router();
+const validate  = require("../middleware/validate.middleware");
+const protect   = require("../middleware/auth.middleware");
 const roleCheck = require("../middleware/roleCheck.middleware");
 const {
   adminRegisterSchema,
@@ -16,9 +16,13 @@ const {
   studentLogin,
   refresh,
   changeAdminPassword,
+  getAllStudents,
+  resetStudentPassword,
+  searchStudents,
+  filterStudents,
 } = require("../controllers/auth.controller");
 
-//admin
+// ── Admin ─────────────────────────────────────────────────────────────────────
 router.post(
   "/admin/register",
   validate(adminRegisterSchema),
@@ -36,15 +40,46 @@ router.put(
   changeAdminPassword,
 );
 
-//both
+// ── Both ──────────────────────────────────────────────────────────────────────
 router.post("/refresh", refresh);
 
-//student
+// ── Student ───────────────────────────────────────────────────────────────────
 router.post(
   "/student/register",
   validate(studentRegisterSchema),
   studentRegister,
 );
+
 router.post("/student/login", validate(studentLoginSchema), studentLogin);
+
+// ── TAC Admin: manage students ────────────────────────────────────────────────
+router.get(
+  "/students",
+  protect,
+  roleCheck(["admin"], ["idcard_admin"]),
+  getAllStudents,
+);
+
+router.post(
+  "/student/reset-password",
+  protect,
+  roleCheck(["admin"], ["idcard_admin"]),
+  resetStudentPassword,
+);
+
+// ── Finance Admin: student search + filter ────────────────────────────────────
+router.get(
+  "/student/search",
+  protect,
+  roleCheck(["admin"], ["finance_admin"]),
+  searchStudents,
+);
+
+router.get(
+  "/student/filter",
+  protect,
+  roleCheck(["admin"], ["finance_admin"]),
+  filterStudents,
+);
 
 module.exports = router;

@@ -3,11 +3,14 @@ const {
   uploadSingleResultService,
   uploadBulkResultsService,
   getAllResultsService,
+  getResultsByStudentService,
+  updateResultService,
   deleteResultService,
 } = require("../services/result.service");
-const fs = require("fs");
-const parseExcel = require("../utils/excelParser");
+const fs          = require("fs");
+const parseExcel  = require("../utils/excelParser");
 
+// ── STUDENT: view own results ─────────────────────────────────────────────────
 const getStudentResult = async (req, res, next) => {
   try {
     const { session, semester } = req.query;
@@ -24,10 +27,9 @@ const getStudentResult = async (req, res, next) => {
   }
 };
 
+// ── TIMETABLE ADMIN: upload single result ─────────────────────────────────────
 const uploadSingleResult = async (req, res, next) => {
   try {
-    const performedBy = req.user.userId;
-    const ipAddress = req.ip;
     const {
       matricNumber,
       courseCode,
@@ -43,13 +45,13 @@ const uploadSingleResult = async (req, res, next) => {
       matricNumber,
       courseCode,
       courseName,
-      creditUnit,
-      test,
-      exam,
+      creditUnit: Number(creditUnit),
+      test:       Number(test),
+      exam:       Number(exam),
       session,
       semester,
-      performedBy,
-      ipAddress,
+      performedBy: req.user.userId,
+      ipAddress:   req.ip,
     });
 
     res.status(201).json({ data });
@@ -58,6 +60,7 @@ const uploadSingleResult = async (req, res, next) => {
   }
 };
 
+// ── TIMETABLE ADMIN: bulk upload results from Excel ───────────────────────────
 const uploadBulkResults = async (req, res, next) => {
   let filePath;
 
@@ -70,9 +73,7 @@ const uploadBulkResults = async (req, res, next) => {
     const parsedResults = parseExcel(filePath);
 
     if (!parsedResults.length) {
-      return res
-        .status(400)
-        .json({ message: "Excel file is empty or invalid" });
+      return res.status(400).json({ message: "Excel file is empty or invalid" });
     }
 
     const { courseCode, courseName, creditUnit, session, semester } = req.body;
@@ -80,22 +81,19 @@ const uploadBulkResults = async (req, res, next) => {
     if (!courseCode || !courseName || !creditUnit || !session || !semester) {
       return res.status(400).json({
         message:
-          "Missing required fields (courseCode, courseName, creditUnit, session, semester)",
+          "Missing required fields: courseCode, courseName, creditUnit, session, semester",
       });
     }
-
-    const performedBy = req.user.userId;
-    const ipAddress = req.ip;
 
     const response = await uploadBulkResultsService({
       results: parsedResults,
       courseCode,
       courseName,
-      creditUnit: Number(creditUnit),
+      creditUnit:  Number(creditUnit),
       session,
       semester,
-      performedBy,
-      ipAddress,
+      performedBy: req.user.userId,
+      ipAddress:   req.ip,
     });
 
     return res.status(200).json(response);
@@ -110,14 +108,47 @@ const uploadBulkResults = async (req, res, next) => {
   }
 };
 
+// ── TIMETABLE ADMIN: get all results (course/session/semester filter) ─────────
 const getAllResults = async (req, res, next) => {
   try {
     const { courseCode, session, semester } = req.query;
 
-    const { data } = await getAllResultsService({
-      courseCode,
+    const { data } = await getAllResultsService({ courseCode, session, semester });
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── TIMETABLE ADMIN: get results for a specific student ───────────────────────
+const getResultsByStudent = async (req, res, next) => {
+  try {
+    const { matricNumber, session, semester } = req.query;
+
+    const { data, student } = await getResultsByStudentService({
+      matricNumber,
       session,
       semester,
+    });
+
+    res.status(200).json({ data, student });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── TIMETABLE ADMIN: update a single result ───────────────────────────────────
+const updateResult = async (req, res, next) => {
+  try {
+    const { test, exam } = req.body;
+
+    const { data } = await updateResultService({
+      resultId:    req.params.id,
+      test,
+      exam,
+      performedBy: req.user.userId,
+      ipAddress:   req.ip,
     });
 
     res.status(200).json({ data });
@@ -126,15 +157,13 @@ const getAllResults = async (req, res, next) => {
   }
 };
 
+// ── TIMETABLE ADMIN: delete a result ─────────────────────────────────────────
 const deleteResult = async (req, res, next) => {
   try {
-    const performedBy = req.user.userId;
-    const ipAddress = req.ip;
-
     const { message } = await deleteResultService({
-      resultId: req.params.id,
-      performedBy,
-      ipAddress,
+      resultId:    req.params.id,
+      performedBy: req.user.userId,
+      ipAddress:   req.ip,
     });
 
     res.status(200).json({ message });
@@ -148,5 +177,7 @@ module.exports = {
   uploadSingleResult,
   uploadBulkResults,
   getAllResults,
+  getResultsByStudent,
+  updateResult,
   deleteResult,
 };

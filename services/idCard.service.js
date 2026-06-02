@@ -1,4 +1,4 @@
-const IdCard = require("../models/idcard.model");
+const IdCard  = require("../models/idcard.model");
 const Student = require("../models/student.model");
 const logAction = require("../utils/logAction");
 
@@ -44,37 +44,33 @@ const submitIdCardService = async ({
     );
   }
 
-  idCard.photoURL = photoURL;
-  idCard.fullName = fullName;
-  idCard.nationality = nationality;
-  idCard.dateOfBirth = dateOfBirth;
-  idCard.gender = gender;
-  idCard.phone = phone;
-  idCard.matricNumber = matricNumber;
-  idCard.department = department;
-  idCard.level = level;
-  idCard.session = session;
-  idCard.status = "pending";
-  idCard.submittedAt = new Date();
+  idCard.photoURL        = photoURL;
+  idCard.fullName        = fullName;
+  idCard.nationality     = nationality;
+  idCard.dateOfBirth     = dateOfBirth;
+  idCard.gender          = gender;
+  idCard.phone           = phone;
+  idCard.matricNumber    = matricNumber;
+  idCard.department      = department;
+  idCard.level           = level;
+  idCard.session         = session;
+  idCard.status          = "pending";
+  idCard.submittedAt     = new Date();
   idCard.rejectionReason = null;
-  idCard.rejectedAt = null;
+  idCard.rejectedAt      = null;
 
   await idCard.save();
   return { data: idCard };
 };
 
 // ── BURSAR: mark ID card fee as paid ─────────────────────────────────────────
-const markFeePaidService = async ({
-  studentId,
-  performedBy,
-  ipAddress,
-}) => {
+const markFeePaidService = async ({ studentId, performedBy, ipAddress }) => {
   let idCard = await IdCard.findOne({ studentId });
 
   if (!idCard) {
     idCard = await IdCard.create({
       studentId,
-      feePaid: true,
+      feePaid:   true,
       feePaidAt: new Date(),
     });
   } else {
@@ -83,21 +79,21 @@ const markFeePaidService = async ({
         "ID card fee has already been marked as paid for this student.",
       );
     }
-    idCard.feePaid = true;
+    idCard.feePaid   = true;
     idCard.feePaidAt = new Date();
     await idCard.save();
   }
 
   await logAction({
     performedBy,
-    action: "UPDATE",
-    targetType: "IDCARD",
-    targetId: idCard._id,
+    action:          "UPDATE",
+    targetType:      "IDCARD",
+    targetId:        idCard._id,
     affectedStudent: studentId,
-    description: `ID card fee marked as paid for student`,
+    description:     "ID card fee marked as paid for student",
     changes: {
       before: { feePaid: false },
-      after: { feePaid: true },
+      after:  { feePaid: true  },
     },
     ipAddress,
   });
@@ -116,20 +112,20 @@ const markCollectedService = async ({ idCardId, performedBy, ipAddress }) => {
     );
   }
 
-  idCard.status = "collected";
+  idCard.status      = "collected";
   idCard.collectedAt = new Date();
   await idCard.save();
 
   await logAction({
     performedBy,
-    action: "UPDATE",
-    targetType: "IDCARD",
-    targetId: idCardId,
+    action:          "UPDATE",
+    targetType:      "IDCARD",
+    targetId:        idCardId,
     affectedStudent: idCard.studentId,
-    description: `ID card marked as collected`,
+    description:     "ID card marked as collected",
     changes: {
-      before: { status: "pending" },
-      after: { status: "collected" },
+      before: { status: "pending"   },
+      after:  { status: "collected" },
     },
     ipAddress,
   });
@@ -151,30 +147,30 @@ const rejectIdCardService = async ({
     throw new Error(`Cannot reject — current status is "${idCard.status}".`);
   }
 
-  idCard.status = "unsubmitted";
-  idCard.rejectedAt = new Date();
+  idCard.status          = "unsubmitted";
+  idCard.rejectedAt      = new Date();
   idCard.rejectionReason = reason || "No reason provided.";
-  idCard.photoURL = null;
-  idCard.submittedAt = null;
+  idCard.photoURL        = null;
+  idCard.submittedAt     = null;
 
   await idCard.save();
 
   await logAction({
     performedBy,
-    action: "UPDATE",
-    targetType: "IDCARD",
-    targetId: idCardId,
+    action:          "UPDATE",
+    targetType:      "IDCARD",
+    targetId:        idCardId,
     affectedStudent: idCard.studentId,
-    description: `ID card rejected — reason: ${reason || "No reason provided"}`,
+    description:     `ID card rejected — reason: ${reason || "No reason provided"}`,
     changes: {
-      before: { status: "pending" },
-      after: { status: "unsubmitted", rejectionReason: reason },
+      before: { status: "pending"     },
+      after:  { status: "unsubmitted", rejectionReason: reason },
     },
     ipAddress,
   });
 
   return {
-    data: idCard,
+    data:    idCard,
     message: "ID card rejected. Student can now resubmit.",
   };
 };
@@ -191,6 +187,28 @@ const getAllIdCardsService = async ({ status }) => {
   return { data: idCards };
 };
 
+// ── TAC ADMIN: dashboard stats ────────────────────────────────────────────────
+const getIdCardStatsService = async () => {
+  const [totalStudents, pending, collected, rejected, total] =
+    await Promise.all([
+      Student.countDocuments(),
+      IdCard.countDocuments({ status: "pending"   }),
+      IdCard.countDocuments({ status: "collected" }),
+      IdCard.countDocuments({ status: "rejected"  }),
+      IdCard.countDocuments(),
+    ]);
+
+  return {
+    data: {
+      totalStudents,
+      pending,
+      collected,
+      rejected,
+      total,
+    },
+  };
+};
+
 module.exports = {
   viewStudentIdCardService,
   submitIdCardService,
@@ -198,4 +216,5 @@ module.exports = {
   markCollectedService,
   rejectIdCardService,
   getAllIdCardsService,
+  getIdCardStatsService,
 };

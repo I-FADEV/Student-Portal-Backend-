@@ -76,21 +76,24 @@ const loginAdmin = async ({ username, password, ipAddress }) => {
   });
 
   const token = generateToken(user._id, user.role, user.adminType);
-  return { token };
+  return { token, admin: { _id: user._id, username: user.username, adminType: user.adminType } }
 };
 
 const registerStudent = async ({
+  name,
+  faculty,
   matricNumber,
   password,
   department,
   level,
 }) => {
-  if (!matricNumber || !password || !department || !level) {
+  if (!name || !matricNumber || !password || !department || !faculty || !level) {
     throw new AppError("fill all required fields", 400);
   }
-
+  const normalizedName = name.trim();
   const normalizedMatric = matricNumber.toUpperCase();
   const normalizedDepartment = department.toUpperCase();
+  const normalizedFaculty = faculty.toUpperCase();
 
   const existingUser = await Student.findOne({ matricNumber });
   if (existingUser) {
@@ -101,6 +104,8 @@ const registerStudent = async ({
   const hashedPassword = await bcrypt.hash(password, salt);
 
   const newUser = await Student.create({
+    name: normalizedName,
+    faculty: normalizedFaculty,
     matricNumber: normalizedMatric,
     password: hashedPassword,
     role: "student",
@@ -113,6 +118,8 @@ const registerStudent = async ({
   return {
     user: {
       id: newUser._id,
+      name: newUser.name,
+      faculty: newUser.faculty,
       matricNumber: newUser.matricNumber,
       role: newUser.role,
       department: newUser.department,

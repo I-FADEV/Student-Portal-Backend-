@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const studentSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      default: null,
+    },
     matricNumber: {
       type: String,
       required: true,
@@ -16,6 +20,10 @@ const studentSchema = new mongoose.Schema(
       default: "student",
     },
     department: {
+      type: String,
+      default: null,
+    },
+    faculty: {
       type: String,
       default: null,
     },

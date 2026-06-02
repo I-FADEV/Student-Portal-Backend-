@@ -1,9 +1,9 @@
-const express = require("express");
-const router = express.Router();
-const upload = require("../config/multer");
-const protect = require("../middleware/auth.middleware");
-const roleCheck = require("../middleware/roleCheck.middleware");
+const express  = require("express");
+const router   = express.Router();
+const upload   = require("../config/multer");
+const protect  = require("../middleware/auth.middleware");
 const validate = require("../middleware/validate.middleware");
+const roleCheck = require("../middleware/roleCheck.middleware");
 const { createIdCardSchema } = require("../validation/idCard.validation");
 const {
   viewIdCard,
@@ -12,15 +12,15 @@ const {
   markCollected,
   rejectIdCard,
   getAllIdCards,
+  getIdCardStats,
 } = require("../controllers/idCard.controller");
 
-// ── STUDENT ──────────────────────────────────────────────────────────────────
+// ── STUDENT ───────────────────────────────────────────────────────────────────
 
 // GET /idcard/view — student views own record (auto-created on first visit)
 router.get("/view", protect, roleCheck(["student"]), viewIdCard);
 
 // POST /idcard/create — student submits form
-// Order: protect → roleCheck → multer (parses file+body) → validate → controller
 router.post(
   "/create",
   protect,
@@ -32,7 +32,7 @@ router.post(
 
 // ── BURSAR ADMIN ──────────────────────────────────────────────────────────────
 
-// PATCH /idcard/fee/:studentId — bursar marks student's ID card fee as paid
+// PATCH /idcard/fee/:studentId — bursar marks ID card fee as paid
 router.patch(
   "/fee/:studentId",
   protect,
@@ -42,7 +42,15 @@ router.patch(
 
 // ── TAC ADMIN ─────────────────────────────────────────────────────────────────
 
-// GET /idcard/admin?status=pending — view all submissions
+// GET /idcard/stats — dashboard stat counts
+router.get(
+  "/stats",
+  protect,
+  roleCheck(["admin"], ["idcard_admin"]),
+  getIdCardStats,
+);
+
+// GET /idcard/admin?status= — view all submissions
 router.get(
   "/admin",
   protect,
@@ -50,7 +58,7 @@ router.get(
   getAllIdCards,
 );
 
-// PATCH /idcard/:id/collect — mark as collected by student
+// PATCH /idcard/:id/collect — mark as collected
 router.patch(
   "/:id/collect",
   protect,
@@ -58,7 +66,7 @@ router.patch(
   markCollected,
 );
 
-// PATCH /idcard/:id/reject — reject submission (student can resubmit)
+// PATCH /idcard/:id/reject — reject submission
 router.patch(
   "/:id/reject",
   protect,
