@@ -23,7 +23,7 @@ const registerAdmin = async ({
 
   const newUser = await Admin.create({
     username,
-    password: hashedPassword,
+    password,
     role: "admin",
     adminType,
   });
