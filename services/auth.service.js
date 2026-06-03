@@ -68,6 +68,11 @@ const loginAdmin = async ({ username, password, ipAddress }) => {
 
 
   const isMatch = await bcrypt.compare(password, user.password);
+
+  console.log("Password entered:", password);
+  console.log("Password match:", isMatch);
+
+  
   if (!isMatch) {
     throw new AppError("Invalid username or password", 400);
   }
