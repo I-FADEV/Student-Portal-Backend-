@@ -57,9 +57,15 @@ const registerAdmin = async ({
 
 const loginAdmin = async ({ username, password, ipAddress }) => {
   const user = await Admin.findOne({ username });
-  if (!user) {
-    throw new AppError("Invalid username or password", 400);
+  
+  console.log("Username:", username);
+  console.log("User found:", !!user);
+
+  if (user) {
+    console.log("Admin type:", user.adminType);
+    console.log("Stored password:", user.password);
   }
+
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
@@ -192,8 +198,7 @@ const changeAdminPasswordService = async ({
   }
 
   // 3. Update password
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  admin.password = hashedPassword;
+  admin.password = newPassword;
   await admin.save();
 
   await logAction({
