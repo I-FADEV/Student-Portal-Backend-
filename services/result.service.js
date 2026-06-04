@@ -7,7 +7,7 @@ const logAction      = require("../utils/logAction");
 
 // ── STUDENT: view own results ─────────────────────────────────────────────────
 const getStudentResultsService = async ({ userId, session, semester }) => {
-  const query = { studentId: userId };
+  const query = { student: userId };
   if (session)  query.session  = session;
   if (semester) query.semester = semester;
 
@@ -42,7 +42,7 @@ const uploadSingleResultService = async ({
 
   const result = await Result.findOneAndUpdate(
     {
-      studentId:  student._id,
+      student:  student._id,
       courseCode: courseCode.toUpperCase(),
       session,
       semester,
@@ -122,7 +122,7 @@ const uploadBulkResultsService = async ({
 
       const saved = await Result.findOneAndUpdate(
         {
-          studentId:  student._id,
+          student:  student._id,
           courseCode: courseCode.toUpperCase(),
           session,
           semester,                   // ← FIX: was semester.toUpperCase() which corrupted "First"→"FIRST"
@@ -202,7 +202,7 @@ const getResultsByStudentService = async ({ query, session, semester }) => {
   }
 
   const resultQuery = {
-    studentId: student._id,
+    student: student._id,
   };
 
   if (session) resultQuery.session = session;
@@ -258,7 +258,7 @@ const updateResultService = async ({
     action:          "UPDATE",
     targetType:      "RESULT",
     targetId:        resultId,
-    affectedStudent: result.studentId,
+    affectedStudent: result.student,
     description:     `Result updated — ${result.courseCode} (${result.session} ${result.semester})`,
     changes: {
       before,
@@ -280,7 +280,7 @@ const deleteResultService = async ({ resultId, performedBy, ipAddress }) => {
     action:          "DELETE",
     targetType:      "RESULT",
     targetId:        resultId,
-    affectedStudent: result.studentId,
+    affectedStudent: result.student,
     description:     `Result deleted — ${result.courseCode} (${result.session} ${result.semester})`,
     changes: {
       before: { test: result.test, exam: result.exam, grade: result.grade },

@@ -6,7 +6,7 @@ const studentProfile = async (req, res, next) => {
 
     const { user } = await viewStudentProfile({ userId });
 
-    res.status(200).json(user);
+    res.status(200).json({ data: user });
   } catch (error) {
     next(error);
   }

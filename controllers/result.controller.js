@@ -96,7 +96,7 @@ const uploadBulkResults = async (req, res, next) => {
       ipAddress:   req.ip,
     });
 
-    return res.status(200).json(response);
+    return res.status(200).json({ data: response });
   } catch (err) {
     return res.status(500).json({
       message: err.message || "Something went wrong during upload",

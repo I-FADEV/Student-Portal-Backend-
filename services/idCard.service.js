@@ -44,6 +44,8 @@ const submitIdCardService = async ({
     );
   }
 
+  // Allow resubmission for rejected status
+
   idCard.photoURL        = photoURL;
   idCard.fullName        = fullName;
   idCard.nationality     = nationality;
@@ -147,7 +149,7 @@ const rejectIdCardService = async ({
     throw new Error(`Cannot reject — current status is "${idCard.status}".`);
   }
 
-  idCard.status          = "unsubmitted";
+  idCard.status          = "rejected";
   idCard.rejectedAt      = new Date();
   idCard.rejectionReason = reason || "No reason provided.";
   idCard.photoURL        = null;
@@ -160,11 +162,11 @@ const rejectIdCardService = async ({
     action:          "UPDATE",
     targetType:      "IDCARD",
     targetId:        idCardId,
-    affectedStudent: idCard.studentId,
+    affectedStudent: idCard.student,
     description:     `ID card rejected — reason: ${reason || "No reason provided"}`,
     changes: {
       before: { status: "pending"     },
-      after:  { status: "unsubmitted", rejectionReason: reason },
+      after:  { status: "rejected", rejectionReason: reason },
     },
     ipAddress,
   });

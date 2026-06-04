@@ -79,7 +79,7 @@ const deleteFacultyService = async ({ facultyId, performedBy, ipAddress }) => {
   }
 
   // Block if students are registered under this faculty (faculty field on Student)
-  const studentCount = await Student.countDocuments({ faculty: faculty.name });
+  const studentCount = await Student.countDocuments({ faculty: { $regex: new RegExp(`^${faculty.name}$`, "i") } });
   if (studentCount > 0) {
     throw new AppError(
       `Cannot delete: ${studentCount} student(s) are registered under this faculty.`,
@@ -292,7 +292,7 @@ const deleteDepartmentService = async ({ deptId, performedBy, ipAddress }) => {
   if (!department) throw new AppError("Department not found", 404);
 
   // Block if students are registered under this department
-  const studentCount = await Student.countDocuments({ department: department.name });
+  const studentCount = await Student.countDocuments({ department: { $regex: new RegExp(`^${department.name}$`, "i") } });
   if (studentCount > 0) {
     throw new AppError(
       `Cannot delete: ${studentCount} student(s) are registered under this department.`,
