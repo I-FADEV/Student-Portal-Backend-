@@ -4,10 +4,10 @@ const logAction = require("../utils/logAction");
 
 // ── STUDENT: view own ID card record ─────────────────────────────────────────
 const viewStudentIdCardService = async ({ studentId }) => {
-  let idCard = await IdCard.findOne({ student });
+  let idCard = await IdCard.findOne({ student: studentId });
 
   if (!idCard) {
-    idCard = await IdCard.create({ studentId });
+    idCard = await IdCard.create({ student: studentId });
   }
 
   return { data: idCard };
