@@ -142,10 +142,10 @@ const createBulkFinanceService = async ({
 }) => {
   const filter = {};
   if (target === "department") {
-    if (department) filter.department = department;
+    if (department) filter.department = { $regex: department, $options: "i" };
     if (level)      filter.level      = Number(level);
   } else if (target === "faculty") {
-    if (faculty) filter.faculty = faculty;
+    if (faculty) filter.faculty = { $regex: faculty, $options: "i" };
   }
   // target === "all" → no filter
 
