@@ -46,6 +46,8 @@ router.post("/refresh", refresh);
 // ── Student ───────────────────────────────────────────────────────────────────
 router.post(
   "/student/register",
+  protect,
+  roleCheck(["admin"], ["idcard_admin", "timetable_admin"]),
   validate(studentRegisterSchema),
   studentRegister,
 );
