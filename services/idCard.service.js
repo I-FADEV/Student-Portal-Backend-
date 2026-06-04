@@ -27,7 +27,7 @@ const submitIdCardService = async ({
   level,
   session,
 }) => {
-  const idCard = await IdCard.findOne({ student });
+  const idCard = await IdCard.findOne({ student: studentId });
 
   if (!idCard)
     throw new Error("ID card record not found. Please refresh and try again.");
@@ -65,11 +65,11 @@ const submitIdCardService = async ({
 
 // ── BURSAR: mark ID card fee as paid ─────────────────────────────────────────
 const markFeePaidService = async ({ studentId, performedBy, ipAddress }) => {
-  let idCard = await IdCard.findOne({ student });
+  let idCard = await IdCard.findOne({ student: studentId });
 
   if (!idCard) {
     idCard = await IdCard.create({
-      studentId,
+      student: studentId,
       feePaid:   true,
       feePaidAt: new Date(),
     });
