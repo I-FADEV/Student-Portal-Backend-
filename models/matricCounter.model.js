@@ -2,14 +2,10 @@ const mongoose = require("mongoose");
 
 const matricCounterSchema = new mongoose.Schema(
   {
-    department: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Department",
-      required: true,
-    },
     level: {
       type: Number,
       required: true,
+      unique: true,
     },
     counter: {
       type: Number,
@@ -20,7 +16,7 @@ const matricCounterSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Ensure unique combination of department and level
-matricCounterSchema.index({ department: 1, level: 1 }, { unique: true });
+// Ensure unique level (counter is shared across all departments at the same level)
+matricCounterSchema.index({ level: 1 }, { unique: true });
 
 module.exports = mongoose.model("MatricCounter", matricCounterSchema);

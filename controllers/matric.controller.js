@@ -1,6 +1,7 @@
 const {
   generateMatricNumberService,
   getMatricCounterService,
+  getMatricStatsService,
 } = require("../services/matric.service");
 
 const generateMatricNumber = async (req, res, next) => {
@@ -27,12 +28,23 @@ const generateMatricNumber = async (req, res, next) => {
 
 const getMatricCounter = async (req, res, next) => {
   try {
-    const { departmentId, level } = req.query;
+    const { level } = req.query;
 
     const result = await getMatricCounterService({
-      departmentId,
       level,
     });
+
+    res.status(200).json({
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getMatricStats = async (req, res, next) => {
+  try {
+    const result = await getMatricStatsService();
 
     res.status(200).json({
       data: result,
@@ -45,4 +57,5 @@ const getMatricCounter = async (req, res, next) => {
 module.exports = {
   generateMatricNumber,
   getMatricCounter,
+  getMatricStats,
 };

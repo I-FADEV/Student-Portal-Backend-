@@ -26,17 +26,13 @@ const generateMatricNumberService = async ({
   const graduationYear = currentYear + yearsToGraduate;
   const gradYearSuffix = String(graduationYear).slice(-2); // Last 2 digits
 
-  // 3. Get or create counter for this department + level
-  let matricCounter = await MatricCounter.findOne({
-    department: departmentId,
-    level,
-  });
+  // 3. Get or create counter for this level (shared across all departments)
+  let matricCounter = await MatricCounter.findOne({ level });
 
   if (!matricCounter) {
     // If manual counter provided, use it; otherwise start from 0
     const initialCounter = manualCounter !== null ? manualCounter : 0;
     matricCounter = await MatricCounter.create({
-      department: departmentId,
       level,
       counter: initialCounter,
     });
@@ -97,16 +93,14 @@ const generateMatricNumberService = async ({
   };
 };
 
-const getMatricCounterService = async ({ departmentId, level }) => {
-  const matricCounter = await MatricCounter.findOne({
-    department: departmentId,
-    level,
-  }).populate("department");
+const getMatricCounterService = async ({ level }) => {
+  const matricCounter = await MatricCounter.findOne({ level });
 
   if (!matricCounter) {
     return {
       exists: false,
       nextCounter: 1,
+      level,
     };
   }
 
@@ -114,13 +108,36 @@ const getMatricCounterService = async ({ departmentId, level }) => {
     exists: true,
     currentCounter: matricCounter.counter,
     nextCounter: matricCounter.counter + 1,
-    department: matricCounter.department.name,
-    abbreviation: matricCounter.department.abbreviation,
     level: matricCounter.level,
+  };
+};
+
+const getMatricStatsService = async () => {
+  const AuditLog = require("../models/auditLog.model");
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const [todayCount, totalCount] = await Promise.all([
+    AuditLog.countDocuments({
+      targetType: "MATRIC",
+      action: "CREATE",
+      createdAt: { $gte: today },
+    }),
+    AuditLog.countDocuments({
+      targetType: "MATRIC",
+      action: "CREATE",
+    }),
+  ]);
+
+  return {
+    today: todayCount,
+    total: totalCount,
   };
 };
 
 module.exports = {
   generateMatricNumberService,
   getMatricCounterService,
+  getMatricStatsService,
 };
