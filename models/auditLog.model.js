@@ -42,13 +42,16 @@ const auditLogSchema = new mongoose.Schema(
         "RESULT",
         "FACULTY",
         "DEPARTMENT",
+        "MATRIC",
+        "STUDENT",
       ],
     },
 
     // WHICH specific record was affected (the finance record id, idcard id etc)
     targetId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
+      required: false,
+      default: null,
     },
 
     // WHICH student was affected — makes it easy to query "all actions on student X"

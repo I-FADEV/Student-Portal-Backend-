@@ -62,10 +62,9 @@ const studentRegisterSchema = joi.object({
   confirmPassword: joi
     .string()
     .valid(joi.ref("password")) // must match password exactly
-    .required()
+    .optional()
     .messages({
       "any.only": "Passwords do not match",
-      "any.required": "Please confirm your password",
     }),
 
   faculty: joi.string().required().messages({
