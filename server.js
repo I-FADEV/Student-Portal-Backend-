@@ -14,6 +14,7 @@ const courseRoutes = require("./routes/course.routes");
 const resultRoutes = require("./routes/result.routes");
 const adminRoutes = require("./routes/admin.routes");
 const registryRoutes = require("./routes/registry.routes");
+const matricRoutes = require("./routes/matric.routes");
 
 
 const errorHandler = require("./middleware/error.middleware");
@@ -61,6 +62,7 @@ app.use("/courses", courseRoutes);
 app.use("/results", resultRoutes);
 app.use("/admin", adminRoutes);
 app.use("/registry", registryRoutes);
+app.use("/matric", matricRoutes);
 
 // Test route
 app.get("/", (req, res) => {

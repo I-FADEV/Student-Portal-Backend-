@@ -124,6 +124,7 @@ const getDepartmentsService = async () => {
     faculty: d.faculty,
     minLevel: d.minLevel,
     maxLevel: d.maxLevel,
+    abbreviation: d.abbreviation,
     studentCount: countMap[d.name] || 0,
     createdAt: d.createdAt,
   }));
@@ -136,6 +137,7 @@ const createDepartmentService = async ({
   facultyId,
   minLevel,
   maxLevel,
+  abbreviation,
   performedBy,
   ipAddress,
 }) => {
@@ -144,6 +146,18 @@ const createDepartmentService = async ({
 
   if (Number(minLevel) >= Number(maxLevel)) {
     throw new AppError("Min level must be less than max level", 400);
+  }
+
+  if (!abbreviation) {
+    throw new AppError("Department abbreviation is required for matric number generation", 400);
+  }
+
+  // Check if abbreviation already exists
+  const existingAbbreviation = await Department.findOne({
+    abbreviation: abbreviation.trim().toUpperCase(),
+  });
+  if (existingAbbreviation) {
+    throw new AppError("A department with this abbreviation already exists", 409);
   }
 
   // Case-insensitive duplicate check within same faculty
@@ -160,6 +174,7 @@ const createDepartmentService = async ({
     faculty: facultyId,
     minLevel: Number(minLevel),
     maxLevel: Number(maxLevel),
+    abbreviation: abbreviation.trim().toUpperCase(),
   });
 
   const populated = await Department.findById(department._id).populate("faculty", "name");
@@ -169,10 +184,10 @@ const createDepartmentService = async ({
     action: "CREATE",
     targetType: "DEPARTMENT",
     targetId: department._id,
-    description: `Department created: ${name} under ${faculty.name}`,
+    description: `Department created: ${name} (${abbreviation}) under ${faculty.name}`,
     changes: {
       before: null,
-      after: { name, faculty: faculty.name, minLevel, maxLevel },
+      after: { name, abbreviation: abbreviation.trim().toUpperCase(), faculty: faculty.name, minLevel, maxLevel },
     },
     ipAddress,
   });
@@ -184,6 +199,7 @@ const createDepartmentService = async ({
       faculty: populated.faculty,
       minLevel: populated.minLevel,
       maxLevel: populated.maxLevel,
+      abbreviation: populated.abbreviation,
       studentCount: 0,
       createdAt: populated.createdAt,
     },
@@ -196,6 +212,7 @@ const updateDepartmentService = async ({
   facultyId,
   minLevel,
   maxLevel,
+  abbreviation,
   performedBy,
   ipAddress,
 }) => {
@@ -207,6 +224,7 @@ const updateDepartmentService = async ({
     faculty: department.faculty?.name,
     minLevel: department.minLevel,
     maxLevel: department.maxLevel,
+    abbreviation: department.abbreviation,
   };
 
   if (facultyId) {
@@ -218,6 +236,17 @@ const updateDepartmentService = async ({
   if (name) department.name = name.trim();
   if (minLevel !== undefined) department.minLevel = Number(minLevel);
   if (maxLevel !== undefined) department.maxLevel = Number(maxLevel);
+  if (abbreviation) {
+    // Check if abbreviation already exists (excluding current department)
+    const existingAbbreviation = await Department.findOne({
+      abbreviation: abbreviation.trim().toUpperCase(),
+      _id: { $ne: deptId },
+    });
+    if (existingAbbreviation) {
+      throw new AppError("A department with this abbreviation already exists", 409);
+    }
+    department.abbreviation = abbreviation.trim().toUpperCase();
+  }
 
   if (department.minLevel >= department.maxLevel) {
     throw new AppError("Min level must be less than max level", 400);
@@ -239,6 +268,7 @@ const updateDepartmentService = async ({
         faculty: updated.faculty?.name,
         minLevel: updated.minLevel,
         maxLevel: updated.maxLevel,
+        abbreviation: updated.abbreviation,
       },
     },
     ipAddress,
@@ -251,6 +281,7 @@ const updateDepartmentService = async ({
       faculty: updated.faculty,
       minLevel: updated.minLevel,
       maxLevel: updated.maxLevel,
+      abbreviation: updated.abbreviation,
       createdAt: updated.createdAt,
     },
   };

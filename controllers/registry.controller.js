@@ -68,12 +68,13 @@ const getDepartments = async (req, res, next) => {
 
 const createDepartment = async (req, res, next) => {
   try {
-    const { name, facultyId, minLevel, maxLevel } = req.body;
+    const { name, facultyId, minLevel, maxLevel, abbreviation } = req.body;
     const { data } = await createDepartmentService({
       name,
       facultyId,
       minLevel,
       maxLevel,
+      abbreviation,
       performedBy: req.user.userId,
       ipAddress: req.ip,
     });
@@ -85,13 +86,14 @@ const createDepartment = async (req, res, next) => {
 
 const updateDepartment = async (req, res, next) => {
   try {
-    const { name, facultyId, minLevel, maxLevel } = req.body;
+    const { name, facultyId, minLevel, maxLevel, abbreviation } = req.body;
     const { data } = await updateDepartmentService({
       deptId: req.params.id,
       name,
       facultyId,
       minLevel,
       maxLevel,
+      abbreviation,
       performedBy: req.user.userId,
       ipAddress: req.ip,
     });

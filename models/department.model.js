@@ -20,6 +20,13 @@ const departmentSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    abbreviation: {
+      type: String,
+      required: true,
+      uppercase: true,
+      trim: true,
+      unique: true,
+    },
   },
   { timestamps: true }
 );
