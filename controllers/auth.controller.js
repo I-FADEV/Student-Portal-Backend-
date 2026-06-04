@@ -201,9 +201,9 @@ const filterStudents = async (req, res, next) => {
   try {
     const { department, level, faculty } = req.query;
     const filter = {};
-    if (department) filter.department = department;
+    if (department) filter.department = { $regex: department, $options: "i" };
     if (level)      filter.level      = Number(level);
-    if (faculty)    filter.faculty    = faculty;
+    if (faculty)    filter.faculty    = { $regex: faculty, $options: "i" };
 
     const students = await Student.find(filter)
       .select("_id name matricNumber department level faculty");
