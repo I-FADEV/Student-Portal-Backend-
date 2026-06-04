@@ -89,7 +89,7 @@ router.get(
 router.delete(
   "/student/:studentId",
   protect,
-  roleCheck(["admin"], ["registry_admin"]),
+  roleCheck(["admin"], ["idcard_admin"]),
   deleteStudent,
 );
 
