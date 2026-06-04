@@ -13,7 +13,7 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   }
 
   const query = {
-    department: { $regex: student.department, $options: "i" },
+    department: { $regex: new RegExp(`^${student.department}$`, "i") },
     level: student.level,
   };
   if (session) query.session = session;
@@ -55,8 +55,8 @@ const createCourseService = async ({
     name,
     code,
     creditUnit,
-    department,
-    level,
+    department: department.trim().toUpperCase(),
+    level: Number(level),
     semester,
     session,
     lecturer: lecturer || null,
@@ -68,10 +68,10 @@ const createCourseService = async ({
     action: "CREATE",
     targetType: "COURSE",
     targetId: course._id,
-    description: `Course ${code.toUpperCase()} created for ${department} level ${level} (${session} ${semester})`,
+    description: `Course ${code.toUpperCase()} created for ${department.trim().toUpperCase()} level ${Number(level)} (${session} ${semester})`,
     changes: {
       before: null,
-      after: { name, code, creditUnit, department, level, session, semester },
+      after: { name, code, creditUnit, department: department.trim().toUpperCase(), level: Number(level), session, semester },
     },
     ipAddress,
   });
@@ -90,6 +90,8 @@ const createBulkCoursesService = async ({
 
   const normalised = courses.map((c) => ({
     ...c,
+    department: c.department.trim().toUpperCase(),
+    level: Number(c.level),
     lecturer: c.lecturer || null,
     lecturerPhone: c.lecturerPhone || null,
   }));
@@ -120,7 +122,7 @@ const getAllCoursesService = async ({
   semester,
 }) => {
   const query = {};
-  if (department) query.department = { $regex: department, $options: "i" };
+  if (department) query.department = { $regex: new RegExp(`^${department}$`, "i") };
   if (level) query.level = Number(level);
   if (session) query.session = session;
   if (semester) query.semester = semester;
