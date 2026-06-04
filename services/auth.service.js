@@ -140,6 +140,36 @@ const registerStudent = async ({
   };
 };
 
+const deleteStudentService = async ({ studentId, performedBy, ipAddress }) => {
+  const student = await Student.findById(studentId);
+  if (!student) {
+    throw new AppError("Student not found", 404);
+  }
+
+  await Student.findByIdAndDelete(studentId);
+
+  await logAction({
+    performedBy,
+    action: "DELETE",
+    targetType: "STUDENT",
+    targetId: studentId,
+    affectedStudent: studentId,
+    description: `Student ${student.name} (${student.matricNumber}) deleted by registry admin`,
+    changes: {
+      before: {
+        name: student.name,
+        matricNumber: student.matricNumber,
+        department: student.department,
+        level: student.level,
+      },
+      after: null,
+    },
+    ipAddress,
+  });
+
+  return { message: "Student deleted successfully" };
+};
+
 // NOTE: Student login logging is skipped — logAction requires performedBy to be
 // an Admin ObjectId (see auditLog model). Students logging themselves in don't
 // fit that shape. If you want to track student logins later, you'd need a
@@ -222,6 +252,7 @@ module.exports = {
   registerAdmin,
   loginAdmin,
   registerStudent,
+  deleteStudentService,
   loginStudent,
   refreshToken,
   changeAdminPasswordService,

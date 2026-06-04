@@ -2,6 +2,7 @@ const {
   registerAdmin,
   loginAdmin,
   registerStudent,
+  deleteStudentService,
   loginStudent,
   refreshToken,
   changeAdminPasswordService,
@@ -213,6 +214,23 @@ const filterStudents = async (req, res, next) => {
   }
 };
 
+// ── DELETE STUDENT (Registry admin only) ────────────────────────────────────────
+const deleteStudent = async (req, res, next) => {
+  try {
+    const { studentId } = req.params;
+
+    const { message } = await deleteStudentService({
+      studentId,
+      performedBy: req.user.userId,
+      ipAddress: req.ip,
+    });
+
+    res.status(200).json({ message });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   adminRegister,
   adminLogin,
@@ -224,4 +242,5 @@ module.exports = {
   resetStudentPassword,
   searchStudents,
   filterStudents,
+  deleteStudent,
 };

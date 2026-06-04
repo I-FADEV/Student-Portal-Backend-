@@ -20,6 +20,7 @@ const {
   resetStudentPassword,
   searchStudents,
   filterStudents,
+  deleteStudent,
 } = require("../controllers/auth.controller");
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -82,6 +83,14 @@ router.get(
   protect,
   roleCheck(["admin"], ["finance_admin"]),
   filterStudents,
+);
+
+// ── Registry Admin: delete student ────────────────────────────────────────────
+router.delete(
+  "/student/:studentId",
+  protect,
+  roleCheck(["admin"], ["registry_admin"]),
+  deleteStudent,
 );
 
 module.exports = router;
