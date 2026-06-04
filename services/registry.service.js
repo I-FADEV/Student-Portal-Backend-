@@ -108,15 +108,14 @@ const getDepartmentsService = async () => {
     .populate("faculty", "name")
     .sort({ name: 1 });
 
-  // Count students per department in one aggregation
-  const studentCounts = await Student.aggregate([
-    { $group: { _id: "$department", count: { $sum: 1 } } },
-  ]);
-
+  // Count students per department using case-insensitive matching
   const countMap = {};
-  studentCounts.forEach((s) => {
-    countMap[s._id] = s.count;
-  });
+  for (const dept of departments) {
+    const count = await Student.countDocuments({
+      department: { $regex: new RegExp(`^${dept.name}$`, "i") }
+    });
+    countMap[dept._id.toString()] = count;
+  }
 
   const result = departments.map((d) => ({
     _id: d._id,
@@ -125,7 +124,7 @@ const getDepartmentsService = async () => {
     minLevel: d.minLevel,
     maxLevel: d.maxLevel,
     abbreviation: d.abbreviation,
-    studentCount: countMap[d.name] || 0,
+    studentCount: countMap[d._id.toString()] || 0,
     createdAt: d.createdAt,
   }));
 

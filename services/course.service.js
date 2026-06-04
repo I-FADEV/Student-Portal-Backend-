@@ -13,7 +13,7 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   }
 
   const query = {
-    department: student.department,
+    department: { $regex: student.department, $options: "i" },
     level: student.level,
   };
   if (session) query.session = session;
@@ -120,7 +120,7 @@ const getAllCoursesService = async ({
   semester,
 }) => {
   const query = {};
-  if (department) query.department = department;
+  if (department) query.department = { $regex: department, $options: "i" };
   if (level) query.level = Number(level);
   if (session) query.session = session;
   if (semester) query.semester = semester;

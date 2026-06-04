@@ -15,7 +15,7 @@ const getStudentTimetableService = async ({ userId, session, semester }) => {
   }
 
   const query = {
-    department: student.department,
+    department: { $regex: student.department, $options: "i" },
     level: student.level,
   };
   if (session) query.session = session;
