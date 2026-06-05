@@ -16,7 +16,4 @@ const matricCounterSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Ensure unique level (counter is shared across all departments at the same level)
-matricCounterSchema.index({ level: 1 }, { unique: true });
-
 module.exports = mongoose.model("MatricCounter", matricCounterSchema);

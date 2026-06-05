@@ -6,7 +6,6 @@ const idCardSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Student",
       required: true,
-      unique: true, // one record per student
     },
 
     // ── Fee status (set by Bursar admin) ─────────────────────────────────────
