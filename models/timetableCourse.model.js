@@ -13,6 +13,7 @@ const timetableCourseSchema = new mongoose.Schema(
   {
     courseCode:    { type: String, required: true, uppercase: true, trim: true },
     courseName:    { type: String, required: true, trim: true },
+    creditUnit:    { type: Number, default: null },
     lecturer:      { type: String, required: true, trim: true },
     lecturerPhone: { type: String, default: null },
 

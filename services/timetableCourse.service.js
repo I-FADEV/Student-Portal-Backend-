@@ -5,6 +5,7 @@ const AppError        = require("../utils/appError");
 const createTimetableCourseService = async ({
   courseCode,
   courseName,
+  creditUnit,
   lecturer,
   lecturerPhone,
   targets,
@@ -27,6 +28,7 @@ const createTimetableCourseService = async ({
   const course = await TimetableCourse.create({
     courseCode,
     courseName,
+    creditUnit: creditUnit ? Number(creditUnit) : null,
     lecturer,
     lecturerPhone: lecturerPhone || null,
     targets,
