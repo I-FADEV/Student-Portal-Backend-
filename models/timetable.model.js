@@ -27,6 +27,10 @@ const timetableSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    creditUnit: {
+      type: Number,
+      default: null,
+    },
     lecturer: {
       type: String,
       default: null,

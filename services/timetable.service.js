@@ -30,6 +30,7 @@ const createTimetableEntryService = async ({
   time,
   courseCode,
   courseName,
+  creditUnit,
   venue,
   lecturer,
   lecturerPhone,
@@ -45,6 +46,7 @@ const createTimetableEntryService = async ({
     time,
     courseCode: normalizeString(courseCode),
     courseName: normalizeString(courseName),
+    creditUnit: creditUnit ? Number(creditUnit) : null,
     venue: normalizeString(venue),
     lecturer: normalizeString(lecturer),
     lecturerPhone: normalizeString(lecturerPhone),
@@ -90,6 +92,7 @@ const createBulkTimetableService = async ({
         time,
         courseCode,
         courseName,
+        creditUnit,
         venue,
         lecturer,
         lecturerPhone,
@@ -115,6 +118,7 @@ const createBulkTimetableService = async ({
       day = normalizeDay(day);
       courseCode = normalizeString(courseCode);
       courseName = normalizeString(courseName);
+      creditUnit = creditUnit ? Number(creditUnit) : null;
       venue = normalizeString(venue);
       lecturer = normalizeString(lecturer);
       lecturerPhone = normalizeString(lecturerPhone);
@@ -147,6 +151,7 @@ const createBulkTimetableService = async ({
         time,
         courseCode,
         courseName,
+        creditUnit,
         venue,
         lecturer,
         lecturerPhone,
@@ -215,6 +220,7 @@ const updateTimetableEntryService = async ({
   time,
   courseCode,
   courseName,
+  creditUnit,
   venue,
   lecturer,
   lecturerPhone,
@@ -234,6 +240,7 @@ const updateTimetableEntryService = async ({
   if (time) updateData.time = time;
   if (courseCode) updateData.courseCode = normalizeString(courseCode);
   if (courseName) updateData.courseName = normalizeString(courseName);
+  if (creditUnit !== undefined) updateData.creditUnit = Number(creditUnit);
   if (venue) updateData.venue = normalizeString(venue);
   if (lecturer) updateData.lecturer = normalizeString(lecturer);
   if (lecturerPhone) updateData.lecturerPhone = normalizeString(lecturerPhone);

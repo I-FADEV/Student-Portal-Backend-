@@ -35,6 +35,7 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
       uniqueCourses.push({
         code: entry.courseCode,
         name: entry.courseName,
+        creditUnit: entry.creditUnit,
         lecturer: entry.lecturer,
         lecturerPhone: entry.lecturerPhone,
         department: entry.department,
