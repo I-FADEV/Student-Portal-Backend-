@@ -26,24 +26,34 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   });
 
   // Extract unique courses from timetable entries
-  const uniqueCourses = [];
-  const seenCourseCodes = new Set();
+  // Use the entry with lecturerPhone if available, otherwise use first occurrence
+  const courseMap = new Map();
 
   for (const entry of timetableEntries) {
-    if (!seenCourseCodes.has(entry.courseCode)) {
-      seenCourseCodes.add(entry.courseCode);
-      uniqueCourses.push({
-        code: entry.courseCode,
-        name: entry.courseName,
-        creditUnit: entry.creditUnit,
-        lecturer: entry.lecturer,
-        lecturerPhone: entry.lecturerPhone,
-        department: entry.department,
-        level: entry.level,
-        session: entry.session,
-        semester: entry.semester,
-      });
+    if (!courseMap.has(entry.courseCode)) {
+      courseMap.set(entry.courseCode, entry);
+    } else {
+      // If current entry has lecturerPhone and existing doesn't, replace it
+      const existing = courseMap.get(entry.courseCode);
+      if (!existing.lecturerPhone && entry.lecturerPhone) {
+        courseMap.set(entry.courseCode, entry);
+      }
     }
+  }
+
+  const uniqueCourses = [];
+  for (const entry of courseMap.values()) {
+    uniqueCourses.push({
+      code: entry.courseCode,
+      name: entry.courseName,
+      creditUnit: entry.creditUnit,
+      lecturer: entry.lecturer,
+      lecturerPhone: entry.lecturerPhone,
+      department: entry.department,
+      level: entry.level,
+      session: entry.session,
+      semester: entry.semester,
+    });
   }
 
   return { data: uniqueCourses };
