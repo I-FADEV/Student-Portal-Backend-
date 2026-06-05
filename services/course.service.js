@@ -36,6 +36,7 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
         code: entry.courseCode,
         name: entry.courseName,
         lecturer: entry.lecturer,
+        lecturerPhone: entry.lecturerPhone,
         department: entry.department,
         level: entry.level,
         session: entry.session,

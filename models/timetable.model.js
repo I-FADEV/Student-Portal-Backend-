@@ -31,6 +31,10 @@ const timetableSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    lecturerPhone: {
+      type: String,
+      default: null,
+    },
     venue: {
       type: String,
       default: null,

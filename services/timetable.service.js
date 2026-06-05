@@ -32,6 +32,7 @@ const createTimetableEntryService = async ({
   courseName,
   venue,
   lecturer,
+  lecturerPhone,
   department,
   level,
   session,
@@ -46,6 +47,7 @@ const createTimetableEntryService = async ({
     courseName: normalizeString(courseName),
     venue: normalizeString(venue),
     lecturer: normalizeString(lecturer),
+    lecturerPhone: normalizeString(lecturerPhone),
     department: normalizeString(department),
     level,
     session: normalizeString(session),
@@ -90,6 +92,7 @@ const createBulkTimetableService = async ({
         courseName,
         venue,
         lecturer,
+        lecturerPhone,
         department,
         level,
         session,
@@ -114,6 +117,7 @@ const createBulkTimetableService = async ({
       courseName = normalizeString(courseName);
       venue = normalizeString(venue);
       lecturer = normalizeString(lecturer);
+      lecturerPhone = normalizeString(lecturerPhone);
       department = normalizeString(department);
       session = normalizeString(session);
       level = Number(level);
@@ -145,6 +149,7 @@ const createBulkTimetableService = async ({
         courseName,
         venue,
         lecturer,
+        lecturerPhone,
         department,
         level,
         session,
@@ -212,6 +217,7 @@ const updateTimetableEntryService = async ({
   courseName,
   venue,
   lecturer,
+  lecturerPhone,
   department,
   level,
   session,
@@ -230,6 +236,7 @@ const updateTimetableEntryService = async ({
   if (courseName) updateData.courseName = normalizeString(courseName);
   if (venue) updateData.venue = normalizeString(venue);
   if (lecturer) updateData.lecturer = normalizeString(lecturer);
+  if (lecturerPhone) updateData.lecturerPhone = normalizeString(lecturerPhone);
   if (department) updateData.department = normalizeString(department);
   if (level) updateData.level = level;
   if (session) updateData.session = normalizeString(session);
