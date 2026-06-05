@@ -24,6 +24,7 @@ const createTimetableCourse = async (req, res, next) => {
     const {
       courseCode,
       courseName,
+      creditUnit,
       lecturer,
       lecturerPhone,
       targets,
@@ -34,6 +35,7 @@ const createTimetableCourse = async (req, res, next) => {
     const { data } = await createTimetableCourseService({
       courseCode,
       courseName,
+      creditUnit,
       lecturer,
       lecturerPhone,
       targets,
@@ -47,7 +49,7 @@ const createTimetableCourse = async (req, res, next) => {
       targetType:  "COURSE",
       targetId:    data._id,
       description: `Course added: ${data.courseCode} — ${data.courseName} (${session} ${semester})`,
-      changes:     { before: null, after: { courseCode, courseName, lecturer, targets, session, semester } },
+      changes:     { before: null, after: { courseCode, courseName, creditUnit, lecturer, targets, session, semester } },
       ipAddress:   req.ip,
     });
 
@@ -61,13 +63,6 @@ const createTimetableCourse = async (req, res, next) => {
 const updateTimetableCourse = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    // Capture before state for log
-    const { data: before } = await getTimetableCoursesService({})
-      .catch(() => ({ data: [] }));
-    const oldCourse = (before || []).find
-      ? null
-      : null; // We'll just log what changed
 
     const { data } = await updateTimetableCourseService(id, req.body);
 

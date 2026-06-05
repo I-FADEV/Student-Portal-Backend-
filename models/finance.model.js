@@ -19,6 +19,13 @@ const financeSchema = new mongoose.Schema(
       required: true,
     },
 
+    currency: {
+      type: String,
+      enum: ["NGN", "XAF"],
+      default: "NGN",
+      required: true,
+    },
+
     //Each payment component
     items: [
       {
@@ -79,6 +86,6 @@ const financeSchema = new mongoose.Schema(
 );
 
 //Prevent duplicate finance records per student/session/semester
-financeSchema.index({ student: 1, session: 1 }, { unique: true });
+financeSchema.index({ student: 1, session: 1, semester: 1 });
 
 module.exports = mongoose.model("Finance", financeSchema);

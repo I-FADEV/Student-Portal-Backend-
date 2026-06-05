@@ -57,22 +57,11 @@ const registerAdmin = async ({
 
 const loginAdmin = async ({ username, password, ipAddress }) => {
   const user = await Admin.findOne({ username });
-  
-  console.log("Username:", username);
-  console.log("User found:", !!user);
-
-  if (user) {
-    console.log("Admin type:", user.adminType);
-    console.log("Stored password:", user.password);
+  if (!user) {
+    throw new AppError("Invalid username or password", 400);
   }
 
-
   const isMatch = await bcrypt.compare(password, user.password);
-
-  console.log("Password entered:", password);
-  console.log("Password match:", isMatch);
-
-  
   if (!isMatch) {
     throw new AppError("Invalid username or password", 400);
   }
@@ -111,14 +100,11 @@ const registerStudent = async ({
     throw new AppError("Matric number already in use", 409);
   }
 
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
-
   const newUser = await Student.create({
     name: normalizedName,
     faculty: normalizedFaculty,
     matricNumber: normalizedMatric,
-    password: hashedPassword,
+    password,
     role: "student",
     department: normalizedDepartment,
     level,
@@ -146,7 +132,17 @@ const deleteStudentService = async ({ studentId, performedBy, ipAddress }) => {
     throw new AppError("Student not found", 404);
   }
 
-  await Student.findByIdAndDelete(studentId);
+  // Delete all related records in parallel
+  const IdCard = require("../models/idcard.model");
+  const Finance = require("../models/finance.model");
+  const Result = require("../models/result.model");
+
+  await Promise.all([
+    Student.findByIdAndDelete(studentId),
+    IdCard.deleteMany({ student: studentId }),
+    Finance.deleteMany({ student: studentId }),
+    Result.deleteMany({ student: studentId }),
+  ]);
 
   await logAction({
     performedBy,
@@ -154,7 +150,7 @@ const deleteStudentService = async ({ studentId, performedBy, ipAddress }) => {
     targetType: "STUDENT",
     targetId: studentId,
     affectedStudent: studentId,
-    description: `Student ${student.name} (${student.matricNumber}) deleted by registry admin`,
+    description: `Student ${student.name} (${student.matricNumber}) and all related records deleted by registry admin`,
     changes: {
       before: {
         name: student.name,

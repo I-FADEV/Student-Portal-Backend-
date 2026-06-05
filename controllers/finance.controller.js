@@ -11,13 +11,14 @@ const {
 // ── CREATE single finance record ───────────────────────────────────────────────
 const createFinance = async (req, res, next) => {
   try {
-    const { session, semester, items, studentId } = req.body;
+    const { session, semester, items, studentId, currency } = req.body;
 
     const { data } = await createFinanceService({
       session,
       semester,
       items,
       studentId,
+      currency,
       performedBy: req.user.userId,
       ipAddress:   req.ip,
     });
@@ -81,10 +82,10 @@ const getFinanceStats = async (req, res, next) => {
 // ── BULK finance creation ──────────────────────────────────────────────────────
 const createBulkFinance = async (req, res, next) => {
   try {
-    const { session, semester, items, target, department, level, faculty } = req.body;
+    const { session, semester, items, currency, target, department, level, faculty } = req.body;
 
     const { data } = await createBulkFinanceService({
-      session, semester, items,
+      session, semester, items, currency,
       target, department, level, faculty,
       performedBy: req.user.userId,
       ipAddress:   req.ip,

@@ -7,7 +7,7 @@ const mongoose           = require("mongoose");
 const AppError           = require("../utils/appError");
 
 // ── CREATE single finance record ───────────────────────────────────────────────
-const createFinanceService = async ({ session, semester, items, studentId, performedBy, ipAddress }) => {
+const createFinanceService = async ({ session, semester, items, studentId, currency, performedBy, ipAddress }) => {
   const existing = await Finance.findOne({ student: studentId, session, semester });
   if (existing) throw new AppError("Finance Record already exists", 409);
 
@@ -18,7 +18,7 @@ const createFinanceService = async ({ session, semester, items, studentId, perfo
   });
   const carriedOverBalance = previousRecords.reduce((sum, r) => sum + r.outstandingBalance, 0);
 
-  const finance = new Finance({ student: studentId, session, semester, items, carriedOverBalance });
+  const finance = new Finance({ student: studentId, session, semester, items, carriedOverBalance, currency: currency || "NGN" });
   recalculateFinance(finance);
   await finance.save();
 
@@ -78,7 +78,7 @@ const payFinanceAndSyncIdCardService = async ({ financeId, payments, performedBy
       targetType: "FINANCE",
       targetId: finance._id,
       affectedStudent: finance.student,
-      description: `Payment recorded — balance now ₦${finance.outstandingBalance}`,
+      description: `Payment recorded — balance now ${finance.currency}${finance.outstandingBalance}`,
       changes: { before, after: { totalPaid: finance.totalPaid, outstandingBalance: finance.outstandingBalance } },
       ipAddress,
     });
@@ -136,7 +136,7 @@ const getFinanceStatsService = async () => {
 
 // ── BULK finance creation ──────────────────────────────────────────────────────
 const createBulkFinanceService = async ({
-  session, semester, items,
+  session, semester, items, currency,
   target, department, level, faculty,
   performedBy, ipAddress,
 }) => {
@@ -165,7 +165,7 @@ const createBulkFinanceService = async ({
     });
     const carriedOverBalance = previousRecords.reduce((s, r) => s + r.outstandingBalance, 0);
 
-    const finance = new Finance({ student: student._id, session, semester, items, carriedOverBalance });
+    const finance = new Finance({ student: student._id, session, semester, items, carriedOverBalance, currency: currency || "NGN" });
     recalculateFinance(finance);
     await finance.save();
 
@@ -193,6 +193,8 @@ const addItemToFinanceService = async ({ financeId, label, amount, performedBy, 
   const exists = finance.items.find((i) => i.label.toLowerCase() === label.toLowerCase());
   if (exists) throw new AppError(`Item "${label}" already exists in this record`, 409);
 
+  // Currency is inherited from the parent finance record
+  const currency = finance.currency || "NGN";
   finance.items.push({ label, amount, paidAmount: 0, status: "Unpaid" });
   recalculateFinance(finance);
   finance.markModified("items");
@@ -204,7 +206,7 @@ const addItemToFinanceService = async ({ financeId, label, amount, performedBy, 
     targetType: "FINANCE",
     targetId: finance._id,
     affectedStudent: finance.student?._id,
-    description: `Item "${label}" (₦${amount}) added to finance record for ${finance.student?.name || finance.student?.matricNumber}`,
+    description: `Item "${label}" (${currency}${amount}) added to finance record for ${finance.student?.name || finance.student?.matricNumber}`,
     ipAddress,
   });
 

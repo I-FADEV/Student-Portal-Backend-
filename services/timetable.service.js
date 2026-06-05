@@ -201,7 +201,7 @@ const getAllTimetableService = async ({
   semester,
 }) => {
   const query = {};
-  if (department) query.department = department;
+  if (department) query.department = { $regex: new RegExp(`^${department}$`, "i") };
   if (level) query.level = Number(level);
   if (session) query.session = session;
   if (semester) query.semester = semester;
@@ -320,7 +320,7 @@ const generateTimetableService = async ({
 
   const courses = await Course.find({
     $or: [
-      { department, level },
+      { department: { $regex: new RegExp(`^${department}$`, "i") }, level },
       { isGeneral: true, level },
     ],
   });
@@ -345,7 +345,7 @@ const generateTimetableService = async ({
           session,
           semester,
           $or: [
-            { department, level },
+            { department: { $regex: new RegExp(`^${department}$`, "i") }, level },
             { lecturer: course.lecturer },
             { venue: course.venue },
           ],
@@ -360,7 +360,7 @@ const generateTimetableService = async ({
           courseName: course.courseName,
           lecturer: course.lecturer,
           venue: course.venue,
-          department,
+          department: department.trim().toUpperCase(),
           level,
           session,
           semester,
