@@ -3,6 +3,74 @@ const router = express.Router();
 const protect = require("../middleware/auth.middleware");
 const Student = require("../models/student.model");
 const Admin = require("../models/admin.model");
+const AuditLog = require("../models/auditLog.model");
+const bcrypt = require("bcryptjs");
+const generateToken = require("../utils/generateToken");
+const AppError = require("../utils/appError");
+
+// POST /session/create - create a new session (login)
+router.post("/create", async (req, res, next) => {
+  try {
+    const { matricNumber, username, password, role } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: "Password is required" });
+    }
+
+    if (role === "student" && matricNumber) {
+      const student = await Student.findOne({ matricNumber: matricNumber.toUpperCase() });
+      if (!student) {
+        return res.status(400).json({ error: "Invalid credentials" });
+      }
+
+      const isMatch = await bcrypt.compare(password, student.password);
+      if (!isMatch) {
+        return res.status(400).json({ error: "Invalid credentials" });
+      }
+
+      const token = generateToken(student._id, student.role);
+
+      return res.status(200).json({
+        token,
+        user: {
+          id: student._id,
+          name: student.name,
+          matricNumber: student.matricNumber,
+          role: student.role,
+          department: student.department,
+          faculty: student.faculty,
+          level: student.level,
+        },
+      });
+    } else if (role === "admin" && username) {
+      const admin = await Admin.findOne({ username });
+      if (!admin) {
+        return res.status(400).json({ error: "Invalid credentials" });
+      }
+
+      const isMatch = await bcrypt.compare(password, admin.password);
+      if (!isMatch) {
+        return res.status(400).json({ error: "Invalid credentials" });
+      }
+
+      const token = generateToken(admin._id, admin.role, admin.adminType);
+
+      return res.status(200).json({
+        token,
+        user: {
+          id: admin._id,
+          username: admin.username,
+          role: admin.role,
+          adminType: admin.adminType,
+        },
+      });
+    }
+
+    res.status(400).json({ error: "Invalid session creation request" });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // GET /session/active - check if user session is active
 router.get("/active", protect, async (req, res, next) => {
@@ -34,6 +102,22 @@ router.get("/active", protect, async (req, res, next) => {
         ...(user.level && { level: user.level }),
       },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /session/history - get user's session/activity history
+router.get("/history", protect, async (req, res, next) => {
+  try {
+    const { userId, role } = req.user;
+    const { limit = 20 } = req.query;
+
+    const logs = await AuditLog.find({ performedBy: userId })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+
+    res.status(200).json({ data: logs });
   } catch (error) {
     next(error);
   }
