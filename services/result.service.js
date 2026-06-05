@@ -4,6 +4,7 @@ const Result         = require("../models/result.model");
 const Student        = require("../models/student.model");
 const calculateGrade = require("../utils/resultCalculator");
 const logAction      = require("../utils/logAction");
+const { getActiveSession } = require("../utils/activeSession");
 
 // ── STUDENT: view own results ─────────────────────────────────────────────────
 const getStudentResultsService = async ({ userId, session, semester }) => {
@@ -30,6 +31,13 @@ const uploadSingleResultService = async ({
   performedBy,
   ipAddress,
 }) => {
+  // Auto-fetch active session if not provided
+  if (!session || !semester) {
+    const activeSession = await getActiveSession();
+    session = session || activeSession.session;
+    semester = semester || activeSession.semester;
+  }
+
   // ── Validation ────────────────────────────────────────────────────────────
   if (test  < 0 || test  > 40) throw new Error(`Test score for ${matricNumber} must be between 0 and 40`);
   if (exam  < 0 || exam  > 60) throw new Error(`Exam score for ${matricNumber} must be between 0 and 60`);
@@ -81,6 +89,13 @@ const uploadBulkResultsService = async ({
 }) => {
   if (!Array.isArray(results) || results.length === 0) {
     throw new Error("Results must be a non-empty array");
+  }
+
+  // Auto-fetch active session if not provided
+  if (!session || !semester) {
+    const activeSession = await getActiveSession();
+    session = session || activeSession.session;
+    semester = semester || activeSession.semester;
   }
 
   const processed = [];

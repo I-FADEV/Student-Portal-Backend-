@@ -3,6 +3,7 @@ const Student = require("../models/student.model");
 const { normalizeString, normalizeDay } = require("../utils/normalize");
 const { DAYS, TIME_SLOTS } = require("../constants/timetable.constants");
 const logAction = require("../utils/logAction");
+const { getActiveSession } = require("../utils/activeSession");
 
 const getStudentTimetableService = async ({ userId, session, semester }) => {
   const student = await Student.findById(userId);
@@ -41,6 +42,13 @@ const createTimetableEntryService = async ({
   performedBy,
   ipAddress,
 }) => {
+  // Auto-fetch active session if not provided
+  if (!session || !semester) {
+    const activeSession = await getActiveSession();
+    session = session || activeSession.session;
+    semester = semester || activeSession.semester;
+  }
+
   const entry = await Timetable.create({
     day: normalizeDay(day),
     time,
@@ -81,6 +89,12 @@ const createBulkTimetableService = async ({
     throw new Error("Entries must be a non-empty array");
   }
 
+  // Auto-fetch active session if not provided in first entry
+  let activeSessionData = null;
+  if (entries.length > 0 && (!entries[0].session || !entries[0].semester)) {
+    activeSessionData = await getActiveSession();
+  }
+
   const cleanedEntries = [];
   const errors = [];
   const seenSlots = new Set();
@@ -101,6 +115,14 @@ const createBulkTimetableService = async ({
         session,
         semester,
       } = row;
+
+      // Use active session if not provided
+      if (!session || !semester) {
+        if (activeSessionData) {
+          session = session || activeSessionData.session;
+          semester = semester || activeSessionData.semester;
+        }
+      }
 
       if (
         !day ||

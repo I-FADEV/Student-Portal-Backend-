@@ -2,6 +2,7 @@ const Course = require("../models/course.model");
 const Student = require("../models/student.model");
 const Timetable = require("../models/timetable.model");
 const logAction = require("../utils/logAction");
+const { getActiveSession } = require("../utils/activeSession");
 
 const getStudentCoursesService = async ({ userId, session, semester }) => {
   const student = await Student.findById(userId);
@@ -72,6 +73,13 @@ const createCourseService = async ({
   performedBy,
   ipAddress,
 }) => {
+  // Auto-fetch active session if not provided
+  if (!session || !semester) {
+    const activeSession = await getActiveSession();
+    session = session || activeSession.session;
+    semester = semester || activeSession.semester;
+  }
+
   const existing = await Course.findOne({
     code: code.toUpperCase(),
     session,

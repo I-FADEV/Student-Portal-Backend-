@@ -1,6 +1,7 @@
 const IdCard  = require("../models/idcard.model");
 const Student = require("../models/student.model");
 const logAction = require("../utils/logAction");
+const { getActiveSession } = require("../utils/activeSession");
 
 // ── STUDENT: view own ID card record ─────────────────────────────────────────
 const viewStudentIdCardService = async ({ studentId }) => {
@@ -27,6 +28,12 @@ const submitIdCardService = async ({
   level,
   session,
 }) => {
+  // Auto-fetch active session if not provided
+  if (!session) {
+    const activeSession = await getActiveSession();
+    session = activeSession.session;
+  }
+
   const idCard = await IdCard.findOne({ student: studentId });
 
   if (!idCard)

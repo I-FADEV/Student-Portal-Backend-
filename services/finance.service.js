@@ -3,11 +3,19 @@ const Finance            = require("../models/finance.model");
 const IdCard             = require("../models/idcard.model");
 const Student            = require("../models/student.model");
 const recalculateFinance = require("../utils/financeRecalculator");
+const { getActiveSession } = require("../utils/activeSession");
 const mongoose           = require("mongoose");
 const AppError           = require("../utils/appError");
 
 // ── CREATE single finance record ───────────────────────────────────────────────
 const createFinanceService = async ({ session, semester, items, studentId, currency, performedBy, ipAddress }) => {
+  // Auto-fetch active session if not provided
+  if (!session || !semester) {
+    const activeSession = await getActiveSession();
+    session = session || activeSession.session;
+    semester = semester || activeSession.semester;
+  }
+
   const existing = await Finance.findOne({ student: studentId, session, semester });
   if (existing) throw new AppError("Finance Record already exists", 409);
 
@@ -140,6 +148,13 @@ const createBulkFinanceService = async ({
   target, department, level, faculty,
   performedBy, ipAddress,
 }) => {
+  // Auto-fetch active session if not provided
+  if (!session || !semester) {
+    const activeSession = await getActiveSession();
+    session = session || activeSession.session;
+    semester = semester || activeSession.semester;
+  }
+
   const filter = {};
   if (target === "department") {
     if (department) filter.department = { $regex: department, $options: "i" };

@@ -1,5 +1,6 @@
 const TimetableCourse = require("../models/timetableCourse.model");
 const AppError        = require("../utils/appError");
+const { getActiveSession } = require("../utils/activeSession");
 
 // ── CREATE ────────────────────────────────────────────────────────────────────
 const createTimetableCourseService = async ({
@@ -12,6 +13,13 @@ const createTimetableCourseService = async ({
   session,
   semester,
 }) => {
+  // Auto-fetch active session if not provided
+  if (!session || !semester) {
+    const activeSession = await getActiveSession();
+    session = session || activeSession.session;
+    semester = semester || activeSession.semester;
+  }
+
   const existing = await TimetableCourse.findOne({
     courseCode: courseCode.toUpperCase(),
     session,
