@@ -1,5 +1,6 @@
 const Course = require("../models/course.model");
 const Student = require("../models/student.model");
+const Timetable = require("../models/timetable.model");
 const logAction = require("../utils/logAction");
 
 const getStudentCoursesService = async ({ userId, session, semester }) => {
@@ -19,12 +20,31 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   if (session) query.session = session;
   if (semester) query.semester = semester;
 
-  const courses = await Course.find(query).sort({
-    session: -1,
-    semester: -1,
-    code: 1,
+  const timetableEntries = await Timetable.find(query).sort({
+    day: 1,
+    time: 1,
   });
-  return { data: courses };
+
+  // Extract unique courses from timetable entries
+  const uniqueCourses = [];
+  const seenCourseCodes = new Set();
+
+  for (const entry of timetableEntries) {
+    if (!seenCourseCodes.has(entry.courseCode)) {
+      seenCourseCodes.add(entry.courseCode);
+      uniqueCourses.push({
+        code: entry.courseCode,
+        name: entry.courseName,
+        lecturer: entry.lecturer,
+        department: entry.department,
+        level: entry.level,
+        session: entry.session,
+        semester: entry.semester,
+      });
+    }
+  }
+
+  return { data: uniqueCourses };
 };
 
 const createCourseService = async ({
