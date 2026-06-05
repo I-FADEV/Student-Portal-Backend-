@@ -1,72 +1,91 @@
 const express = require("express");
 const router = express.Router();
 const protect = require("../middleware/auth.middleware");
+const roleCheck = require("../middleware/roleCheck.middleware");
 const Student = require("../models/student.model");
 const Admin = require("../models/admin.model");
 const AuditLog = require("../models/auditLog.model");
-const bcrypt = require("bcryptjs");
-const generateToken = require("../utils/generateToken");
-const AppError = require("../utils/appError");
+const logAction = require("../utils/logAction");
 
-// POST /session/create - create a new session (login)
-router.post("/create", async (req, res, next) => {
+// POST /session/create - create an academic session (only general admin)
+router.post("/create", protect, roleCheck(["admin"], ["general_admin"]), async (req, res, next) => {
   try {
-    const { matricNumber, username, password, role } = req.body;
+    const { session, startNow, startDate } = req.body;
 
-    if (!password) {
-      return res.status(400).json({ error: "Password is required" });
+    if (!session) {
+      return res.status(400).json({ error: "Session is required (e.g., 2025/2026)" });
     }
 
-    if (role === "student" && matricNumber) {
-      const student = await Student.findOne({ matricNumber: matricNumber.toUpperCase() });
-      if (!student) {
-        return res.status(400).json({ error: "Invalid credentials" });
-      }
-
-      const isMatch = await bcrypt.compare(password, student.password);
-      if (!isMatch) {
-        return res.status(400).json({ error: "Invalid credentials" });
-      }
-
-      const token = generateToken(student._id, student.role);
-
-      return res.status(200).json({
-        token,
-        user: {
-          id: student._id,
-          name: student.name,
-          matricNumber: student.matricNumber,
-          role: student.role,
-          department: student.department,
-          faculty: student.faculty,
-          level: student.level,
-        },
-      });
-    } else if (role === "admin" && username) {
-      const admin = await Admin.findOne({ username });
-      if (!admin) {
-        return res.status(400).json({ error: "Invalid credentials" });
-      }
-
-      const isMatch = await bcrypt.compare(password, admin.password);
-      if (!isMatch) {
-        return res.status(400).json({ error: "Invalid credentials" });
-      }
-
-      const token = generateToken(admin._id, admin.role, admin.adminType);
-
-      return res.status(200).json({
-        token,
-        user: {
-          id: admin._id,
-          username: admin.username,
-          role: admin.role,
-          adminType: admin.adminType,
-        },
-      });
+    // Validate session format (e.g., 2025/2026)
+    const sessionPattern = /^\d{4}\/\d{4}$/;
+    if (!sessionPattern.test(session)) {
+      return res.status(400).json({ error: "Session must follow format: YYYY/YYYY (e.g., 2025/2026)" });
     }
 
-    res.status(400).json({ error: "Invalid session creation request" });
+    // Store session info - this could be stored in a separate Session model if needed
+    // For now, we'll just log the action and return success
+    await logAction({
+      performedBy: req.user.userId,
+      action: "CREATE",
+      targetType: "SESSION",
+      targetId: session,
+      description: `Academic session ${session} created${startNow ? " and started" : ""}`,
+      changes: {
+        before: null,
+        after: { session, startNow, startDate },
+      },
+      ipAddress: req.ip,
+    });
+
+    res.status(201).json({
+      message: "Session created successfully",
+      data: {
+        session,
+        startNow: startNow || false,
+        startDate: startDate || null,
+        status: startNow ? "active" : "inactive",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /session/stop - stop an active academic session (only general admin)
+router.post("/stop", protect, roleCheck(["admin"], ["general_admin"]), async (req, res, next) => {
+  try {
+    const { session } = req.body;
+
+    if (!session) {
+      return res.status(400).json({ error: "Session is required" });
+    }
+
+    // Validate session format
+    const sessionPattern = /^\d{4}\/\d{4}$/;
+    if (!sessionPattern.test(session)) {
+      return res.status(400).json({ error: "Session must follow format: YYYY/YYYY (e.g., 2025/2026)" });
+    }
+
+    await logAction({
+      performedBy: req.user.userId,
+      action: "UPDATE",
+      targetType: "SESSION",
+      targetId: session,
+      description: `Academic session ${session} stopped`,
+      changes: {
+        before: { status: "active" },
+        after: { status: "inactive" },
+      },
+      ipAddress: req.ip,
+    });
+
+    res.status(200).json({
+      message: "Session stopped successfully",
+      data: {
+        session,
+        status: "inactive",
+      },
+    });
   } catch (error) {
     next(error);
   }
