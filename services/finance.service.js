@@ -8,12 +8,22 @@ const mongoose           = require("mongoose");
 const AppError           = require("../utils/appError");
 
 // ── CREATE single finance record ───────────────────────────────────────────────
-const createFinanceService = async ({ session, semester, items, studentId, currency, performedBy, ipAddress }) => {
+const createFinanceService = async ({ session, semester, items, studentId, performedBy, ipAddress }) => {
   // Auto-fetch active session if not provided
   if (!session || !semester) {
     const activeSession = await getActiveSession();
     session = session || activeSession.session;
     semester = semester || activeSession.semester;
+  }
+
+  // Validate items have currency
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new AppError("Items array is required", 400);
+  }
+  for (const item of items) {
+    if (!item.currency || !["NGN", "XAF"].includes(item.currency)) {
+      throw new AppError(`Item "${item.label}" must have a valid currency (NGN or XAF)`, 400);
+    }
   }
 
   const existing = await Finance.findOne({ student: studentId, session, semester });
@@ -26,7 +36,10 @@ const createFinanceService = async ({ session, semester, items, studentId, curre
   });
   const carriedOverBalance = previousRecords.reduce((sum, r) => sum + r.outstandingBalance, 0);
 
-  const finance = new Finance({ student: studentId, session, semester, items, carriedOverBalance, currency: currency || "NGN" });
+  // Derive currency from first item for backward compatibility
+  const currency = items[0]?.currency || "NGN";
+
+  const finance = new Finance({ student: studentId, session, semester, items, carriedOverBalance, currency });
   recalculateFinance(finance);
   await finance.save();
 
@@ -139,12 +152,47 @@ const getFinanceStatsService = async () => {
   const totalCollected   = allRecords.reduce((s, r) => s + (r.totalPaid          || 0), 0);
   const totalOutstanding = allRecords.reduce((s, r) => s + (r.outstandingBalance || 0), 0);
 
-  return { data: { totalStudents, totalFeesCreated, totalCollected, totalOutstanding } };
+  // Currency breakdown
+  const totalFeesCreatedNGN = allRecords.reduce((sum, rec) => {
+    return sum + rec.items.filter(i => i.currency === 'NGN').reduce((s, i) => s + i.amount, 0);
+  }, 0);
+  const totalFeesCreatedXAF = allRecords.reduce((sum, rec) => {
+    return sum + rec.items.filter(i => i.currency === 'XAF').reduce((s, i) => s + i.amount, 0);
+  }, 0);
+
+  const totalCollectedNGN = allRecords.reduce((sum, rec) => {
+    return sum + rec.items.filter(i => i.currency === 'NGN').reduce((s, i) => s + (i.paidAmount || 0), 0);
+  }, 0);
+  const totalCollectedXAF = allRecords.reduce((sum, rec) => {
+    return sum + rec.items.filter(i => i.currency === 'XAF').reduce((s, i) => s + (i.paidAmount || 0), 0);
+  }, 0);
+
+  const totalOutstandingNGN = allRecords.reduce((sum, rec) => {
+    return sum + rec.items.filter(i => i.currency === 'NGN').reduce((s, i) => s + (i.amount - (i.paidAmount || 0)), 0);
+  }, 0);
+  const totalOutstandingXAF = allRecords.reduce((sum, rec) => {
+    return sum + rec.items.filter(i => i.currency === 'XAF').reduce((s, i) => s + (i.amount - (i.paidAmount || 0)), 0);
+  }, 0);
+
+  return { 
+    data: { 
+      totalStudents, 
+      totalFeesCreated, 
+      totalCollected, 
+      totalOutstanding,
+      totalFeesCreatedNGN,
+      totalFeesCreatedXAF,
+      totalCollectedNGN,
+      totalCollectedXAF,
+      totalOutstandingNGN,
+      totalOutstandingXAF,
+    } 
+  };
 };
 
 // ── BULK finance creation ──────────────────────────────────────────────────────
 const createBulkFinanceService = async ({
-  session, semester, items, currency,
+  session, semester, items,
   target, department, level, faculty,
   performedBy, ipAddress,
 }) => {
@@ -153,6 +201,16 @@ const createBulkFinanceService = async ({
     const activeSession = await getActiveSession();
     session = session || activeSession.session;
     semester = semester || activeSession.semester;
+  }
+
+  // Validate items have currency
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    throw new AppError("Items array is required", 400);
+  }
+  for (const item of items) {
+    if (!item.currency || !["NGN", "XAF"].includes(item.currency)) {
+      throw new AppError(`Item "${item.label}" must have a valid currency (NGN or XAF)`, 400);
+    }
   }
 
   const filter = {};
@@ -180,7 +238,10 @@ const createBulkFinanceService = async ({
     });
     const carriedOverBalance = previousRecords.reduce((s, r) => s + r.outstandingBalance, 0);
 
-    const finance = new Finance({ student: student._id, session, semester, items, carriedOverBalance, currency: currency || "NGN" });
+    // Derive currency from first item for backward compatibility
+    const currency = items[0]?.currency || "NGN";
+
+    const finance = new Finance({ student: student._id, session, semester, items, carriedOverBalance, currency });
     recalculateFinance(finance);
     await finance.save();
 
@@ -201,16 +262,19 @@ const createBulkFinanceService = async ({
 };
 
 // ── ADD ITEM to existing record ────────────────────────────────────────────────
-const addItemToFinanceService = async ({ financeId, label, amount, performedBy, ipAddress }) => {
+const addItemToFinanceService = async ({ financeId, label, amount, currency, performedBy, ipAddress }) => {
   const finance = await Finance.findById(financeId).populate("student", "name matricNumber");
   if (!finance) throw new AppError("Finance record not found", 404);
+
+  // Validate currency
+  if (!currency || !["NGN", "XAF"].includes(currency)) {
+    throw new AppError("Currency must be NGN or XAF", 400);
+  }
 
   const exists = finance.items.find((i) => i.label.toLowerCase() === label.toLowerCase());
   if (exists) throw new AppError(`Item "${label}" already exists in this record`, 409);
 
-  // Currency is inherited from the parent finance record
-  const currency = finance.currency || "NGN";
-  finance.items.push({ label, amount, paidAmount: 0, status: "Unpaid" });
+  finance.items.push({ label, amount, currency, paidAmount: 0, status: "Unpaid" });
   recalculateFinance(finance);
   finance.markModified("items");
   await finance.save();

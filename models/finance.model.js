@@ -40,6 +40,12 @@ const financeSchema = new mongoose.Schema(
           min: 0,
         },
 
+        currency: {
+          type: String,
+          enum: ["NGN", "XAF"],
+          required: true,
+        },
+
         paidAmount: {
           type: Number,
           default: 0,
