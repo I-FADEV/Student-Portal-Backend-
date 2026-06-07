@@ -9,9 +9,8 @@ const itemSchema = Joi.object({
     "number.positive": "Item amount must be a positive number",
     "any.required": "Item amount is required",
   }),
-  currency: Joi.string().valid("NGN", "XAF").required().messages({
+  currency: Joi.string().valid("NGN", "XAF").optional().messages({
     "any.only": "Currency must be either NGN or XAF",
-    "any.required": "Currency is required",
   }),
   paidAmount: Joi.number().min(0).optional().default(0),
   status: Joi.string().valid("Paid", "Partial", "Unpaid").optional().default("Unpaid"),
@@ -55,17 +54,12 @@ const addItemSchema = Joi.object({
     "number.positive": "Item amount must be a positive number",
     "any.required": "Item amount is required",
   }),
-  currency: Joi.string().valid("NGN", "XAF").required().messages({
+  currency: Joi.string().valid("NGN", "XAF").optional().messages({
     "any.only": "Currency must be either NGN or XAF",
-    "any.required": "Currency is required",
   }),
 });
 
 const paymentSchema = Joi.object({
-  financeId: Joi.string().required().messages({
-    "string.empty": "Finance ID is required",
-    "any.required": "Finance ID is required",
-  }),
   payments: Joi.array().items(
     Joi.object({
       itemLabel: Joi.string().required().messages({

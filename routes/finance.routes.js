@@ -50,7 +50,7 @@ router.post(
   payFinance,
 );
 
-router.patch(
+router.post(
   "/:id/add-item",
   protect,
   roleCheck(["admin"], ["finance_admin"]),

@@ -219,46 +219,87 @@ const createBulkFinanceService = async ({
     if (level)      filter.level      = Number(level);
   } else if (target === "faculty") {
     if (faculty) filter.faculty = { $regex: faculty, $options: "i" };
+    if (level)  filter.level = Number(level);
   }
   // target === "all" → no filter
 
   const students = await Student.find(filter).select("_id name matricNumber");
   if (!students.length) throw new AppError("No students found for this target", 404);
 
-  let created = 0, skipped = 0;
+  let created = 0, updated = 0, skipped = 0;
 
   for (const student of students) {
     const existing = await Finance.findOne({ student: student._id, session, semester });
-    if (existing) { skipped++; continue; }
+    
+    if (existing) {
+      // Update existing record by adding new items
+      let itemsAdded = 0;
+      for (const newItem of items) {
+        const existingItem = existing.items.find(
+          (i) => i.label.toLowerCase() === newItem.label.toLowerCase()
+        );
+        if (!existingItem) {
+          existing.items.push({
+            label: newItem.label,
+            amount: newItem.amount,
+            currency: newItem.currency || "NGN",
+            paidAmount: 0,
+            status: "Unpaid",
+          });
+          itemsAdded++;
+        }
+      }
+      
+      if (itemsAdded > 0) {
+        recalculateFinance(existing);
+        existing.markModified("items");
+        await existing.save();
 
-    const previousRecords = await Finance.find({
-      student: student._id,
-      session: { $ne: session },
-      outstandingBalance: { $gt: 0 },
-    });
-    const carriedOverBalance = previousRecords.reduce((s, r) => s + r.outstandingBalance, 0);
+        await logAction({
+          performedBy,
+          action: "UPDATE",
+          targetType: "FINANCE",
+          targetId: existing._id,
+          affectedStudent: student._id,
+          description: `Bulk: finance record updated for ${student.name || student.matricNumber} — ${session} ${semester} (${itemsAdded} items added)`,
+          ipAddress,
+        });
 
-    // Derive currency from first item for backward compatibility
-    const currency = items[0]?.currency || "NGN";
+        updated++;
+      } else {
+        skipped++;
+      }
+    } else {
+      // Create new record
+      const previousRecords = await Finance.find({
+        student: student._id,
+        session: { $ne: session },
+        outstandingBalance: { $gt: 0 },
+      });
+      const carriedOverBalance = previousRecords.reduce((s, r) => s + r.outstandingBalance, 0);
 
-    const finance = new Finance({ student: student._id, session, semester, items, carriedOverBalance, currency });
-    recalculateFinance(finance);
-    await finance.save();
+      // Derive currency from first item for backward compatibility
+      const currency = items[0]?.currency || "NGN";
 
-    await logAction({
-      performedBy,
-      action: "CREATE",
-      targetType: "FINANCE",
-      targetId: finance._id,
-      affectedStudent: student._id,
-      description: `Bulk: finance record created for ${student.name || student.matricNumber} — ${session} ${semester}`,
-      ipAddress,
-    });
+      const finance = new Finance({ student: student._id, session, semester, items, carriedOverBalance, currency });
+      recalculateFinance(finance);
+      await finance.save();
 
-    created++;
+      await logAction({
+        performedBy,
+        action: "CREATE",
+        targetType: "FINANCE",
+        targetId: finance._id,
+        affectedStudent: student._id,
+        description: `Bulk: finance record created for ${student.name || student.matricNumber} — ${session} ${semester}`,
+        ipAddress,
+      });
+
+      created++;
+    }
   }
 
-  return { data: { created, skipped, total: students.length } };
+  return { data: { created, updated, skipped, total: students.length } };
 };
 
 // ── ADD ITEM to existing record ────────────────────────────────────────────────
