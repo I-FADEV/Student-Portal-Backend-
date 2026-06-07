@@ -7,6 +7,7 @@ const {
   getStudentResult,
   uploadSingleResult,
   uploadBulkResults,
+  getStudentsForCourse,
   getAllResults,
   getResultsByStudent,
   updateResult,
@@ -26,6 +27,14 @@ router.get(
   protect,
   roleCheck(["admin"], ["timetable_admin"]),
   getAllResults,
+);
+
+// GET /results/students-for-course?courseCode=&session=&semester=
+router.get(
+  "/students-for-course",
+  protect,
+  roleCheck(["admin"], ["timetable_admin"]),
+  getStudentsForCourse,
 );
 
 // GET /results/student?matricNumber=&session=&semester=

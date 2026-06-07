@@ -2,6 +2,7 @@
 
 const Result         = require("../models/result.model");
 const Student        = require("../models/student.model");
+const TimetableCourse = require("../models/timetableCourse.model");
 const calculateGrade = require("../utils/resultCalculator");
 const logAction      = require("../utils/logAction");
 const { getActiveSession } = require("../utils/activeSession");
@@ -185,6 +186,89 @@ const uploadBulkResultsService = async ({
   };
 };
 
+// ── TIMETABLE ADMIN: get students for manual result entry (based on course targets) ─
+const getStudentsForCourseService = async ({ courseCode, session, semester }) => {
+  if (!courseCode || !session || !semester) {
+    throw new AppError("courseCode, session, and semester are required", 400);
+  }
+
+  // Get course details from TimetableCourse
+  const course = await TimetableCourse.findOne({
+    courseCode: courseCode.toUpperCase(),
+    session,
+    semester,
+  });
+
+  if (!course) {
+    throw new AppError(`Course ${courseCode.toUpperCase()} not found for ${session} ${semester}`, 404);
+  }
+
+  // Build student query based on course targets
+  const studentQueries = [];
+
+  for (const target of course.targets) {
+    if (target.type === "department") {
+      studentQueries.push({
+        department: { $regex: new RegExp(`^${target.name}$`, "i") },
+        level: target.level,
+      });
+    } else if (target.type === "faculty") {
+      studentQueries.push({
+        faculty: { $regex: new RegExp(`^${target.name}$`, "i") },
+        level: target.level,
+      });
+    }
+  }
+
+  if (studentQueries.length === 0) {
+    throw new AppError("No targets set for this course", 400);
+  }
+
+  // Find students matching any of the target queries
+  const students = await Student.find({
+    $or: studentQueries,
+  }).select("_id name matricNumber department level");
+
+  if (!students.length) {
+    throw new AppError("No students found for this course. Check course targets are set correctly.", 404);
+  }
+
+  // Get existing results for these students
+  const studentIds = students.map(s => s._id);
+  const existingResults = await Result.find({
+    student: { $in: studentIds },
+    courseCode: courseCode.toUpperCase(),
+    session,
+    semester,
+  });
+
+  // Create a map of studentId -> result
+  const resultMap = new Map();
+  for (const result of existingResults) {
+    resultMap.set(result.student.toString(), result);
+  }
+
+  // Combine student data with existing results
+  const studentsWithResults = students.map(student => {
+    const result = resultMap.get(student._id.toString());
+    return {
+      _id: student._id,
+      name: student.name,
+      matric: student.matricNumber,
+      matricNumber: student.matricNumber,
+      department: student.department,
+      level: student.level,
+      test: result?.test || 0,
+      exam: result?.exam || 0,
+      total: result?.total || 0,
+      grade: result?.grade || null,
+      resultId: result?._id || null,
+    };
+  });
+
+  return { data: studentsWithResults };
+};
+
 // ── TIMETABLE ADMIN: get all results (filter by course/session/semester) ──────
 const getAllResultsService = async ({ courseCode, session, semester }) => {
   const query = {};
@@ -311,6 +395,7 @@ module.exports = {
   getStudentResultsService,
   uploadSingleResultService,
   uploadBulkResultsService,
+  getStudentsForCourseService,
   getAllResultsService,
   getResultsByStudentService,
   updateResultService,

@@ -2,6 +2,7 @@ const {
   getStudentResultsService,
   uploadSingleResultService,
   uploadBulkResultsService,
+  getStudentsForCourseService,
   getAllResultsService,
   getResultsByStudentService,
   updateResultService,
@@ -108,6 +109,19 @@ const uploadBulkResults = async (req, res, next) => {
   }
 };
 
+// ── TIMETABLE ADMIN: get students for manual result entry (based on course targets) ─
+const getStudentsForCourse = async (req, res, next) => {
+  try {
+    const { courseCode, session, semester } = req.query;
+
+    const { data } = await getStudentsForCourseService({ courseCode, session, semester });
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ── TIMETABLE ADMIN: get all results (course/session/semester filter) ─────────
 const getAllResults = async (req, res, next) => {
   try {
@@ -176,6 +190,7 @@ module.exports = {
   getStudentResult,
   uploadSingleResult,
   uploadBulkResults,
+  getStudentsForCourse,
   getAllResults,
   getResultsByStudent,
   updateResult,
