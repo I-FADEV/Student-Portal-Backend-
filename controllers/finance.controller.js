@@ -49,10 +49,10 @@ const payFinance = async (req, res, next) => {
 // ── VIEW finance — student sees own, admin sees all ───────────────────────────
 const viewFinance = async (req, res, next) => {
   try {
-    const { session, semester, studentId } = req.query;
+    const { session, semester, studentId, status } = req.query;
 
     if (req.user.role === "admin") {
-      const { data } = await viewAllFinanceService({ session, semester, studentId });
+      const { data } = await viewAllFinanceService({ session, semester, studentId, status });
       return res.status(200).json({ data });
     }
 
