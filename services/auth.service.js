@@ -5,6 +5,8 @@ const Student = require("../models/student.model");
 const jwt = require("jsonwebtoken");
 const logAction = require("../utils/logAction");
 const AppError = require("../utils/appError");
+const { getActiveSession } = require("./activeSession");
+const { getActiveTemplateForStudent, applyTemplateToStudent } = require("./financeTemplate.service");
 
 const registerAdmin = async ({
   username,
@@ -109,6 +111,19 @@ const registerStudent = async ({
     department: normalizedDepartment,
     level,
   });
+
+  // Auto-create finance record based on active template
+  try {
+    const activeSession = await getActiveSession();
+    const template = await getActiveTemplateForStudent(newUser);
+    
+    if (template) {
+      await applyTemplateToStudent(newUser, template, activeSession.session, activeSession.semester);
+    }
+  } catch (error) {
+    // Don't fail registration if finance record creation fails
+    console.error("Failed to auto-create finance record:", error.message);
+  }
 
   const token = generateToken(newUser._id, newUser.role);
 

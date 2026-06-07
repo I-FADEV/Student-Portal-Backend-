@@ -6,6 +6,7 @@ const recalculateFinance = require("../utils/financeRecalculator");
 const { getActiveSession } = require("../utils/activeSession");
 const mongoose           = require("mongoose");
 const AppError           = require("../utils/appError");
+const { createFinanceTemplateService, applyTemplateToExistingStudents } = require("./financeTemplate.service");
 
 // ── CREATE single finance record ───────────────────────────────────────────────
 const createFinanceService = async ({ session, semester, items, studentId, performedBy, ipAddress }) => {
@@ -214,93 +215,27 @@ const createBulkFinanceService = async ({
     }
   }
 
-  const filter = {};
-  if (target === "department") {
-    if (department) filter.department = { $regex: department, $options: "i" };
-    if (level)      filter.level      = Number(level);
-  } else if (target === "faculty") {
-    if (faculty) filter.faculty = { $regex: faculty, $options: "i" };
-    if (level)  filter.level = Number(level);
-  }
-  // target === "all" → no filter
+  // Create finance template
+  const { data: template } = await createFinanceTemplateService({
+    target,
+    department,
+    faculty,
+    level,
+    items,
+    performedBy,
+    ipAddress,
+  });
 
-  const students = await Student.find(filter).select("_id name matricNumber");
-  if (!students.length) throw new AppError("No students found for this target", 404);
+  // Apply template to existing students
+  const { data: result } = await applyTemplateToExistingStudents({
+    templateId: template._id,
+    session,
+    semester,
+    performedBy,
+    ipAddress,
+  });
 
-  let created = 0, updated = 0, skipped = 0;
-
-  for (const student of students) {
-    const existing = await Finance.findOne({ student: student._id, session, semester });
-    
-    if (existing) {
-      // Update existing record by adding new items
-      let itemsAdded = 0;
-      for (const newItem of items) {
-        const existingItem = existing.items.find(
-          (i) => i.label.toLowerCase() === newItem.label.toLowerCase()
-        );
-        if (!existingItem) {
-          existing.items.push({
-            label: newItem.label,
-            amount: newItem.amount,
-            currency: newItem.currency || "NGN",
-            paidAmount: 0,
-            status: "Unpaid",
-          });
-          itemsAdded++;
-        }
-      }
-      
-      if (itemsAdded > 0) {
-        recalculateFinance(existing);
-        existing.markModified("items");
-        await existing.save();
-
-        await logAction({
-          performedBy,
-          action: "UPDATE",
-          targetType: "FINANCE",
-          targetId: existing._id,
-          affectedStudent: student._id,
-          description: `Bulk: finance record updated for ${student.name || student.matricNumber} — ${session} ${semester} (${itemsAdded} items added)`,
-          ipAddress,
-        });
-
-        updated++;
-      } else {
-        skipped++;
-      }
-    } else {
-      // Create new record
-      const previousRecords = await Finance.find({
-        student: student._id,
-        session: { $ne: session },
-        outstandingBalance: { $gt: 0 },
-      });
-      const carriedOverBalance = previousRecords.reduce((s, r) => s + r.outstandingBalance, 0);
-
-      // Derive currency from first item for backward compatibility
-      const currency = items[0]?.currency || "NGN";
-
-      const finance = new Finance({ student: student._id, session, semester, items, carriedOverBalance, currency });
-      recalculateFinance(finance);
-      await finance.save();
-
-      await logAction({
-        performedBy,
-        action: "CREATE",
-        targetType: "FINANCE",
-        targetId: finance._id,
-        affectedStudent: student._id,
-        description: `Bulk: finance record created for ${student.name || student.matricNumber} — ${session} ${semester}`,
-        ipAddress,
-      });
-
-      created++;
-    }
-  }
-
-  return { data: { created, updated, skipped, total: students.length } };
+  return { data: result };
 };
 
 // ── ADD ITEM to existing record ────────────────────────────────────────────────
