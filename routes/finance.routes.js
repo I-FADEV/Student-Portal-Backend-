@@ -2,6 +2,7 @@ const express   = require("express");
 const router    = express.Router();
 const protect   = require("../middleware/auth.middleware");
 const roleCheck = require("../middleware/roleCheck.middleware");
+const validate  = require("../middleware/validate.middleware");
 const {
   createFinance,
   payFinance,
@@ -10,6 +11,12 @@ const {
   createBulkFinance,
   addItemToFinance,
 } = require("../controllers/finance.controller");
+const {
+  createFinanceSchema,
+  createBulkFinanceSchema,
+  addItemSchema,
+  paymentSchema,
+} = require("../validation/finance.validation");
 
 // ── Finance Admin only ────────────────────────────────────────────────────────
 router.get(
@@ -23,6 +30,7 @@ router.post(
   "/create",
   protect,
   roleCheck(["admin"], ["finance_admin"]),
+  validate(createFinanceSchema),
   createFinance,
 );
 
@@ -30,6 +38,7 @@ router.post(
   "/bulk",
   protect,
   roleCheck(["admin"], ["finance_admin"]),
+  validate(createBulkFinanceSchema),
   createBulkFinance,
 );
 
@@ -37,6 +46,7 @@ router.post(
   "/pay/:id",
   protect,
   roleCheck(["admin"], ["finance_admin"]),
+  validate(paymentSchema),
   payFinance,
 );
 
@@ -44,6 +54,7 @@ router.patch(
   "/:id/add-item",
   protect,
   roleCheck(["admin"], ["finance_admin"]),
+  validate(addItemSchema),
   addItemToFinance,
 );
 
