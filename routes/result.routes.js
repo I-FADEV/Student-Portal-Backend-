@@ -62,6 +62,14 @@ router.post(
   uploadBulkResults,
 );
 
+// POST /results/bulk — JSON bulk upload (for manual entry)
+router.post(
+  "/bulk",
+  protect,
+  roleCheck(["admin"], ["timetable_admin"]),
+  uploadBulkResults,
+);
+
 // PUT /results/:id — edit a single result
 router.put(
   "/:id",
