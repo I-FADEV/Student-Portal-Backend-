@@ -128,11 +128,12 @@ const viewStudentFinance = async ({ session, semester, studentId }) => {
 };
 
 // ── VIEW ALL records (admin branch) ───────────────────────────────────────────
-const viewAllFinanceService = async ({ session, semester, studentId } = {}) => {
+const viewAllFinanceService = async ({ session, semester, studentId, status } = {}) => {
   const query = {};
   if (session)   query.session  = session;
   if (semester)  query.semester = semester;
   if (studentId) query.student  = studentId;
+  if (status)    query.paymentStatus = status;
 
   const records = await Finance.find(query)
     .populate("student", "name matricNumber department level")

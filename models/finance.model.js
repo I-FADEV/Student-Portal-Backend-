@@ -15,7 +15,7 @@ const financeSchema = new mongoose.Schema(
 
     semester: {
       type: String,
-      enum: ["First", "Second"],
+      enum: ["First", "Second", "Summer"],
       required: true,
     },
 
