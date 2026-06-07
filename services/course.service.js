@@ -64,8 +64,8 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
       
       // Start with entry data, then override with courseDetails if available
       const mergedCourse = {
-        courseCode: entry.courseCode,
-        courseName: entry.courseName,
+        courseCode: entry.courseCode || courseDetails?.courseCode,
+        courseName: entry.courseName || courseDetails?.courseName,
         creditUnit: entry.creditUnit,
         lecturer: entry.lecturer,
         lecturerPhone: entry.lecturerPhone,
@@ -85,6 +85,9 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
         }
         if (courseDetails.lecturer) {
           mergedCourse.lecturer = courseDetails.lecturer;
+        }
+        if (courseDetails.courseName) {
+          mergedCourse.courseName = courseDetails.courseName;
         }
       }
 
@@ -107,6 +110,7 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
     });
   }
 
+  console.log('uniqueCourses:', JSON.stringify(uniqueCourses, null, 2));
   return { data: uniqueCourses };
 };
 
