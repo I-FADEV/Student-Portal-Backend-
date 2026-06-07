@@ -16,12 +16,12 @@ const createFinanceService = async ({ session, semester, items, studentId, perfo
     semester = semester || activeSession.semester;
   }
 
-  // Validate items have currency
+  // Validate items have currency (optional for backward compatibility)
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new AppError("Items array is required", 400);
   }
   for (const item of items) {
-    if (!item.currency || !["NGN", "XAF"].includes(item.currency)) {
+    if (item.currency && !["NGN", "XAF"].includes(item.currency)) {
       throw new AppError(`Item "${item.label}" must have a valid currency (NGN or XAF)`, 400);
     }
   }
@@ -203,12 +203,12 @@ const createBulkFinanceService = async ({
     semester = semester || activeSession.semester;
   }
 
-  // Validate items have currency
+  // Validate items have currency (optional for backward compatibility)
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new AppError("Items array is required", 400);
   }
   for (const item of items) {
-    if (!item.currency || !["NGN", "XAF"].includes(item.currency)) {
+    if (item.currency && !["NGN", "XAF"].includes(item.currency)) {
       throw new AppError(`Item "${item.label}" must have a valid currency (NGN or XAF)`, 400);
     }
   }
