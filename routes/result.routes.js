@@ -7,6 +7,7 @@ const {
   getStudentResult,
   uploadSingleResult,
   uploadBulkResults,
+  uploadBulkResultsJSON,
   getStudentsForCourse,
   getAllResults,
   getResultsByStudent,
@@ -67,7 +68,7 @@ router.post(
   "/bulk",
   protect,
   roleCheck(["admin"], ["timetable_admin"]),
-  uploadBulkResults,
+  uploadBulkResultsJSON,
 );
 
 // PUT /results/:id — edit a single result

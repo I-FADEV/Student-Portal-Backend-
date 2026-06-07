@@ -186,6 +186,93 @@ const uploadBulkResultsService = async ({
   };
 };
 
+// ── TIMETABLE ADMIN: bulk upload results from JSON (manual entry) ───────────────
+const uploadBulkResultsJSONService = async ({ results, performedBy, ipAddress }) => {
+  if (!results || !Array.isArray(results) || results.length === 0) {
+    throw new AppError("Results array is required", 400);
+  }
+
+  const processed = [];
+  const errors = [];
+
+  for (let i = 0; i < results.length; i++) {
+    const row = results[i];
+    const { matricNumber, courseCode, session, semester, studentName, test, exam, total, grade } = row;
+
+    try {
+      if (!matricNumber) {
+        throw new Error("Matric number is required");
+      }
+
+      const student = await Student.findOne({ matricNumber });
+      if (!student) {
+        throw new Error(`Student with matric number "${matricNumber}" not found`);
+      }
+
+      const existing = await Result.findOne({
+        student: student._id,
+        courseCode: courseCode.toUpperCase(),
+        session,
+        semester,
+      });
+
+      const totalScore = total || (Number(test) + Number(exam));
+      const finalGrade = grade || calculateGrade(totalScore);
+
+      const saved = await Result.findOneAndUpdate(
+        {
+          student: student._id,
+          courseCode: courseCode.toUpperCase(),
+          session,
+          semester,
+        },
+        {
+          student: student._id,
+          courseCode: courseCode.toUpperCase(),
+          courseName: studentName || courseCode,
+          creditUnit: 0,
+          test: Number(test) || 0,
+          exam: Number(exam) || 0,
+          total: totalScore,
+          grade: finalGrade,
+          session,
+          semester,
+        },
+        { upsert: true, new: true },
+      );
+
+      processed.push({ matricNumber, total: totalScore, grade: finalGrade, id: saved._id });
+    } catch (err) {
+      errors.push({ row: i + 1, reason: err.message });
+    }
+  }
+
+  await logAction({
+    performedBy,
+    action: "CREATE",
+    targetType: "RESULT",
+    targetId: performedBy,
+    description: `Bulk result upload (JSON) — ${processed.length} saved, ${errors.length} failed`,
+    changes: {
+      before: null,
+      after: { saved: processed.length, failed: errors.length },
+    },
+    ipAddress,
+  });
+
+  return {
+    data: {
+      processed,
+      errors,
+      summary: {
+        total: results.length,
+        saved: processed.length,
+        failed: errors.length,
+      },
+    },
+  };
+};
+
 // ── TIMETABLE ADMIN: get students for manual result entry (based on course targets) ─
 const getStudentsForCourseService = async ({ courseCode, session, semester }) => {
   if (!courseCode || !session || !semester) {
@@ -395,6 +482,7 @@ module.exports = {
   getStudentResultsService,
   uploadSingleResultService,
   uploadBulkResultsService,
+  uploadBulkResultsJSONService,
   getStudentsForCourseService,
   getAllResultsService,
   getResultsByStudentService,

@@ -2,6 +2,7 @@ const {
   getStudentResultsService,
   uploadSingleResultService,
   uploadBulkResultsService,
+  uploadBulkResultsJSONService,
   getStudentsForCourseService,
   getAllResultsService,
   getResultsByStudentService,
@@ -109,6 +110,25 @@ const uploadBulkResults = async (req, res, next) => {
   }
 };
 
+// ── TIMETABLE ADMIN: bulk upload results from JSON (manual entry) ───────────────
+const uploadBulkResultsJSON = async (req, res, next) => {
+  try {
+    const { results } = req.body;
+
+    const response = await uploadBulkResultsJSONService({
+      results,
+      performedBy: req.user.userId,
+      ipAddress: req.ip,
+    });
+
+    return res.status(200).json({ data: response });
+  } catch (err) {
+    return res.status(500).json({
+      message: err.message || "Something went wrong during upload",
+    });
+  }
+};
+
 // ── TIMETABLE ADMIN: get students for manual result entry (based on course targets) ─
 const getStudentsForCourse = async (req, res, next) => {
   try {
@@ -190,6 +210,7 @@ module.exports = {
   getStudentResult,
   uploadSingleResult,
   uploadBulkResults,
+  uploadBulkResultsJSON,
   getStudentsForCourse,
   getAllResults,
   getResultsByStudent,
