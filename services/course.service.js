@@ -1,6 +1,7 @@
 const Course = require("../models/course.model");
 const Student = require("../models/student.model");
 const Timetable = require("../models/timetable.model");
+const TimetableCourse = require("../models/timetableCourse.model");
 const logAction = require("../utils/logAction");
 const { getActiveSession } = require("../utils/activeSession");
 
@@ -26,19 +27,35 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
     time: 1,
   });
 
-  // Extract unique courses from timetable entries
-  // Use the entry with lecturerPhone if available, otherwise use first occurrence
+  // Get all course codes from timetable entries
+  const courseCodes = [...new Set(timetableEntries.map(e => e.courseCode))];
+
+  // Fetch course details from TimetableCourse
+  const courseDetailsMap = new Map();
+  if (courseCodes.length > 0) {
+    const courseQuery = {
+      courseCode: { $in: courseCodes },
+    };
+    if (session) courseQuery.session = session;
+    if (semester) courseQuery.semester = semester;
+
+    const timetableCourses = await TimetableCourse.find(courseQuery);
+    for (const course of timetableCourses) {
+      courseDetailsMap.set(course.courseCode, course);
+    }
+  }
+
+  // Extract unique courses from timetable entries with details from TimetableCourse
   const courseMap = new Map();
 
   for (const entry of timetableEntries) {
     if (!courseMap.has(entry.courseCode)) {
-      courseMap.set(entry.courseCode, entry);
-    } else {
-      // If current entry has lecturerPhone and existing doesn't, replace it
-      const existing = courseMap.get(entry.courseCode);
-      if (!existing.lecturerPhone && entry.lecturerPhone) {
-        courseMap.set(entry.courseCode, entry);
-      }
+      const courseDetails = courseDetailsMap.get(entry.courseCode);
+      courseMap.set(entry.courseCode, {
+        ...entry,
+        creditUnit: courseDetails?.creditUnit || entry.creditUnit,
+        lecturerPhone: courseDetails?.lecturerPhone || entry.lecturerPhone,
+      });
     }
   }
 

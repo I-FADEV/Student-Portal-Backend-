@@ -93,4 +93,7 @@ const idCardSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Unique index on student to prevent duplicate ID card records per student
+idCardSchema.index({ student: 1 }, { unique: true });
+
 module.exports = mongoose.model("IdCard", idCardSchema);
