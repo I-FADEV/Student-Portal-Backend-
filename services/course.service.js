@@ -22,7 +22,17 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   if (session) query.session = session;
   if (semester) query.semester = semester;
 
-  const timetableEntries = await Timetable.find(query).sort({
+  const timetableEntries = await Timetable.find(query).select({
+    courseCode: 1,
+    courseName: 1,
+    creditUnit: 1,
+    lecturer: 1,
+    lecturerPhone: 1,
+    department: 1,
+    level: 1,
+    session: 1,
+    semester: 1,
+  }).sort({
     day: 1,
     time: 1,
   });
@@ -51,11 +61,34 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   for (const entry of timetableEntries) {
     if (!courseMap.has(entry.courseCode)) {
       const courseDetails = courseDetailsMap.get(entry.courseCode);
-      courseMap.set(entry.courseCode, {
-        ...entry,
-        creditUnit: courseDetails?.creditUnit || entry.creditUnit,
-        lecturerPhone: courseDetails?.lecturerPhone || entry.lecturerPhone,
-      });
+      
+      // Start with entry data, then override with courseDetails if available
+      const mergedCourse = {
+        courseCode: entry.courseCode,
+        courseName: entry.courseName,
+        creditUnit: entry.creditUnit,
+        lecturer: entry.lecturer,
+        lecturerPhone: entry.lecturerPhone,
+        department: entry.department,
+        level: entry.level,
+        session: entry.session,
+        semester: entry.semester,
+      };
+
+      // Override with courseDetails if available
+      if (courseDetails) {
+        if (courseDetails.creditUnit !== null && courseDetails.creditUnit !== undefined) {
+          mergedCourse.creditUnit = courseDetails.creditUnit;
+        }
+        if (courseDetails.lecturerPhone !== null && courseDetails.lecturerPhone !== undefined) {
+          mergedCourse.lecturerPhone = courseDetails.lecturerPhone;
+        }
+        if (courseDetails.lecturer) {
+          mergedCourse.lecturer = courseDetails.lecturer;
+        }
+      }
+
+      courseMap.set(entry.courseCode, mergedCourse);
     }
   }
 
