@@ -5,7 +5,7 @@ const Student = require("../models/student.model");
 const jwt = require("jsonwebtoken");
 const logAction = require("../utils/logAction");
 const AppError = require("../utils/appError");
-const { getActiveSession } = require("./activeSession");
+const { getActiveSession } = require("../utils/activeSession");
 const { getActiveTemplateForStudent, applyTemplateToStudent } = require("./financeTemplate.service");
 
 const registerAdmin = async ({
