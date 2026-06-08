@@ -195,6 +195,20 @@ const uploadBulkResultsJSONService = async ({ results, performedBy, ipAddress })
   const processed = [];
   const errors = [];
 
+  // Get unique course codes to fetch course details
+  const courseCodes = [...new Set(results.map(r => r.courseCode))];
+
+  // Fetch course details from TimetableCourse
+  const courseDetailsMap = new Map();
+  if (courseCodes.length > 0) {
+    const courses = await TimetableCourse.find({
+      courseCode: { $in: courseCodes.map(c => c.toUpperCase()) },
+    });
+    for (const course of courses) {
+      courseDetailsMap.set(course.courseCode.toUpperCase(), course);
+    }
+  }
+
   for (let i = 0; i < results.length; i++) {
     const row = results[i];
     const { matricNumber, courseCode, session, semester, studentName, test, exam, total, grade } = row;
@@ -216,6 +230,11 @@ const uploadBulkResultsJSONService = async ({ results, performedBy, ipAddress })
         semester,
       });
 
+      // Get course details from TimetableCourse
+      const courseDetails = courseDetailsMap.get(courseCode.toUpperCase());
+      const finalCourseName = courseDetails?.courseName || courseCode;
+      const finalCreditUnit = courseDetails?.creditUnit || 0;
+
       const totalScore = total || (Number(test) + Number(exam));
       const finalGrade = grade || calculateGrade(totalScore);
 
@@ -229,8 +248,8 @@ const uploadBulkResultsJSONService = async ({ results, performedBy, ipAddress })
         {
           student: student._id,
           courseCode: courseCode.toUpperCase(),
-          courseName: studentName || courseCode,
-          creditUnit: 0,
+          courseName: finalCourseName,
+          creditUnit: finalCreditUnit,
           test: Number(test) || 0,
           exam: Number(exam) || 0,
           total: totalScore,

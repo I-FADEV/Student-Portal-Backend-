@@ -27,7 +27,7 @@ connectDB();
 // Middleware
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://student-portal-frontend-kappa.vercel.app",
+  "https://ifatossportal.vercel.app",
 ];
 
 app.use(
