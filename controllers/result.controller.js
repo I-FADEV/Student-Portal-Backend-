@@ -8,6 +8,7 @@ const {
   getResultsByStudentService,
   updateResultService,
   deleteResultService,
+  fixExistingResultsService,
 } = require("../services/result.service");
 const fs          = require("fs");
 const parseExcel  = require("../utils/excelParser");
@@ -206,6 +207,20 @@ const deleteResult = async (req, res, next) => {
   }
 };
 
+// ── ADMIN: fix existing results with correct courseName and creditUnit ───────────
+const fixExistingResults = async (req, res, next) => {
+  try {
+    const { data } = await fixExistingResultsService({
+      performedBy: req.user.userId,
+      ipAddress: req.ip,
+    });
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getStudentResult,
   uploadSingleResult,
@@ -216,4 +231,5 @@ module.exports = {
   getResultsByStudent,
   updateResult,
   deleteResult,
+  fixExistingResults,
 };

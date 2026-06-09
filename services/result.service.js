@@ -497,6 +497,47 @@ const deleteResultService = async ({ resultId, performedBy, ipAddress }) => {
   return { message: "Result deleted" };
 };
 
+// ── ADMIN: fix existing results with correct courseName and creditUnit ───────────
+const fixExistingResultsService = async ({ performedBy, ipAddress }) => {
+  const results = await Result.find({});
+
+  let fixed = 0;
+  let errors = 0;
+
+  for (const result of results) {
+    try {
+      const courseDetails = await TimetableCourse.findOne({
+        courseCode: result.courseCode.toUpperCase(),
+      });
+
+      if (courseDetails) {
+        await Result.findByIdAndUpdate(result._id, {
+          courseName: courseDetails.courseName,
+          creditUnit: courseDetails.creditUnit,
+        });
+        fixed++;
+      }
+    } catch (err) {
+      errors++;
+    }
+  }
+
+  await logAction({
+    performedBy,
+    action: "UPDATE",
+    targetType: "RESULT",
+    targetId: performedBy,
+    description: `Fixed ${fixed} results with correct courseName and creditUnit, ${errors} errors`,
+    changes: {
+      before: null,
+      after: { fixed, errors },
+    },
+    ipAddress,
+  });
+
+  return { data: { fixed, errors, total: results.length } };
+};
+
 module.exports = {
   getStudentResultsService,
   uploadSingleResultService,
@@ -507,4 +548,5 @@ module.exports = {
   getResultsByStudentService,
   updateResultService,
   deleteResultService,
+  fixExistingResultsService,
 };

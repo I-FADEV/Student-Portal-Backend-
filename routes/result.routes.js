@@ -13,6 +13,7 @@ const {
   getResultsByStudent,
   updateResult,
   deleteResult,
+  fixExistingResults,
 } = require("../controllers/result.controller");
 
 // ── STUDENT ───────────────────────────────────────────────────────────────────
@@ -85,6 +86,14 @@ router.delete(
   protect,
   roleCheck(["admin"], ["timetable_admin"]),
   deleteResult,
+);
+
+// POST /results/fix-existing — fix courseName and creditUnit for existing results
+router.post(
+  "/fix-existing",
+  protect,
+  roleCheck(["admin"], ["timetable_admin"]),
+  fixExistingResults,
 );
 
 module.exports = router;
