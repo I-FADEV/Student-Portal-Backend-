@@ -15,14 +15,56 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
     );
   }
 
-  const query = {
-    department: { $regex: new RegExp(`^${student.department}$`, "i") },
+  // Query TimetableCourse to find all courses that match the student's profile
+  const courseQuery = {
+    $or: [
+      // Department-based courses
+      {
+        targets: {
+          $elemMatch: {
+            type: "department",
+            name: { $regex: new RegExp(`^${student.department}$`, "i") },
+            level: student.level,
+          },
+        },
+      },
+      // Faculty-based courses (if student has faculty)
+      ...(student.faculty
+        ? [
+            {
+              targets: {
+                $elemMatch: {
+                  type: "faculty",
+                  name: { $regex: new RegExp(`^${student.faculty}$`, "i") },
+                  level: student.level,
+                },
+              },
+            },
+          ]
+        : []),
+    ],
+  };
+  if (session) courseQuery.session = session;
+  if (semester) courseQuery.semester = semester;
+
+  const timetableCourses = await TimetableCourse.find(courseQuery);
+
+  // Get all course codes from matching TimetableCourse entries
+  const courseCodes = [...new Set(timetableCourses.map(c => c.courseCode))];
+
+  if (courseCodes.length === 0) {
+    return { data: [] };
+  }
+
+  // Query Timetable entries for these courses
+  const timetableQuery = {
+    courseCode: { $in: courseCodes },
     level: student.level,
   };
-  if (session) query.session = session;
-  if (semester) query.semester = semester;
+  if (session) timetableQuery.session = session;
+  if (semester) timetableQuery.semester = semester;
 
-  const timetableEntries = await Timetable.find(query).select({
+  const timetableEntries = await Timetable.find(timetableQuery).select({
     courseCode: 1,
     courseName: 1,
     creditUnit: 1,
@@ -37,22 +79,10 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
     time: 1,
   });
 
-  // Get all course codes from timetable entries
-  const courseCodes = [...new Set(timetableEntries.map(e => e.courseCode))];
-
-  // Fetch course details from TimetableCourse
+  // Create a map of courseCode -> course details from TimetableCourse
   const courseDetailsMap = new Map();
-  if (courseCodes.length > 0) {
-    const courseQuery = {
-      courseCode: { $in: courseCodes },
-    };
-    if (session) courseQuery.session = session;
-    if (semester) courseQuery.semester = semester;
-
-    const timetableCourses = await TimetableCourse.find(courseQuery);
-    for (const course of timetableCourses) {
-      courseDetailsMap.set(course.courseCode, course);
-    }
+  for (const course of timetableCourses) {
+    courseDetailsMap.set(course.courseCode, course);
   }
 
   // Extract unique courses from timetable entries with details from TimetableCourse

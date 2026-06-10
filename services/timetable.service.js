@@ -1,5 +1,6 @@
 const Timetable = require("../models/timetable.model");
 const Student = require("../models/student.model");
+const TimetableCourse = require("../models/timetableCourse.model");
 const { normalizeString, normalizeDay } = require("../utils/normalize");
 const { DAYS, TIME_SLOTS } = require("../constants/timetable.constants");
 const logAction = require("../utils/logAction");
@@ -15,8 +16,50 @@ const getStudentTimetableService = async ({ userId, session, semester }) => {
     );
   }
 
+  // Query TimetableCourse to find all courses that match the student's profile
+  const courseQuery = {
+    $or: [
+      // Department-based courses
+      {
+        targets: {
+          $elemMatch: {
+            type: "department",
+            name: { $regex: new RegExp(`^${student.department}$`, "i") },
+            level: student.level,
+          },
+        },
+      },
+      // Faculty-based courses (if student has faculty)
+      ...(student.faculty
+        ? [
+            {
+              targets: {
+                $elemMatch: {
+                  type: "faculty",
+                  name: { $regex: new RegExp(`^${student.faculty}$`, "i") },
+                  level: student.level,
+                },
+              },
+            },
+          ]
+        : []),
+    ],
+  };
+  if (session) courseQuery.session = session;
+  if (semester) courseQuery.semester = semester;
+
+  const timetableCourses = await TimetableCourse.find(courseQuery);
+
+  // Get all course codes from matching TimetableCourse entries
+  const courseCodes = [...new Set(timetableCourses.map(c => c.courseCode))];
+
+  if (courseCodes.length === 0) {
+    return { data: [] };
+  }
+
+  // Query Timetable entries for these courses
   const query = {
-    department: { $regex: student.department, $options: "i" },
+    courseCode: { $in: courseCodes },
     level: student.level,
   };
   if (session) query.session = session;
@@ -340,27 +383,60 @@ const generateTimetableService = async ({
     throw new Error("Missing required fields");
   }
 
-  const courses = await Course.find({
-    $or: [
-      { department: { $regex: new RegExp(`^${department}$`, "i") }, level },
-      { isGeneral: true, level },
-    ],
-  });
+  // Try to determine faculty from department by querying a student
+  const facultyQuery = { department: { $regex: new RegExp(`^${department}$`, "i") }, level };
+  const sampleStudent = await Student.findOne(facultyQuery).select("faculty");
+  const faculty = sampleStudent?.faculty;
 
-  if (!courses.length) {
+  // Query TimetableCourse to find all courses that match the department/faculty and level
+  const courseQuery = {
+    $or: [
+      // Department-based courses
+      {
+        targets: {
+          $elemMatch: {
+            type: "department",
+            name: { $regex: new RegExp(`^${department}$`, "i") },
+            level: level,
+          },
+        },
+      },
+      // Faculty-based courses (if we can determine the faculty)
+      ...(faculty
+        ? [
+            {
+              targets: {
+                $elemMatch: {
+                  type: "faculty",
+                  name: { $regex: new RegExp(`^${faculty}$`, "i") },
+                  level: level,
+                },
+              },
+            },
+          ]
+        : []),
+    ],
+  };
+  courseQuery.session = session;
+  courseQuery.semester = semester;
+
+  const timetableCourses = await TimetableCourse.find(courseQuery);
+
+  if (!timetableCourses.length) {
     throw new Error("No courses found");
   }
 
   const schedule = [];
   const unscheduled = [];
 
-  for (const course of courses) {
+  for (const course of timetableCourses) {
     let placed = false;
 
     for (const day of DAYS) {
       if (placed) break;
 
       for (const time of TIME_SLOTS) {
+        // Check for conflicts with existing timetable entries
         const clash = await Timetable.findOne({
           day,
           time,
@@ -380,8 +456,10 @@ const generateTimetableService = async ({
           time,
           courseCode: course.courseCode,
           courseName: course.courseName,
+          creditUnit: course.creditUnit,
           lecturer: course.lecturer,
-          venue: course.venue,
+          lecturerPhone: course.lecturerPhone,
+          venue: null, // Will need to be set separately
           department: department.trim().toUpperCase(),
           level,
           session,
@@ -406,7 +484,7 @@ const generateTimetableService = async ({
   return {
     data: result,
     summary: {
-      totalCourses: courses.length,
+      totalCourses: timetableCourses.length,
       scheduled: result.length,
       unscheduled: unscheduled.length,
     },
