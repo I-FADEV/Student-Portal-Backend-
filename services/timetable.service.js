@@ -5,6 +5,68 @@ const { normalizeString, normalizeDay } = require("../utils/normalize");
 const { DAYS, TIME_SLOTS } = require("../constants/timetable.constants");
 const logAction = require("../utils/logAction");
 const { getActiveSession } = require("../utils/activeSession");
+const AppError = require("../utils/appError");
+
+/** Case-insensitive exact match for department/faculty names in queries */
+const caseInsensitiveExact = (value) => ({
+  $regex: new RegExp(`^${String(value).trim()}$`, "i"),
+});
+
+/**
+ * Returns true if placing `course` at day/time conflicts with an entry
+ * already in the in-memory batch or an existing DB row.
+ */
+const hasSlotConflict = async ({
+  day,
+  time,
+  course,
+  department,
+  level,
+  session,
+  semester,
+  pendingSchedule,
+}) => {
+  const deptNorm = normalizeString(department);
+  const levelNum = Number(level);
+
+  // Conflicts within the batch being built in this run
+  for (const entry of pendingSchedule) {
+    if (entry.day !== day || entry.time !== time) continue;
+
+    if (entry.department === deptNorm && entry.level === levelNum) return true;
+
+    if (
+      entry.lecturer &&
+      course.lecturer &&
+      entry.lecturer.toLowerCase() === course.lecturer.toLowerCase() &&
+      entry.courseCode !== course.courseCode
+    ) {
+      return true;
+    }
+  }
+
+  // Conflicts with entries already saved in the database
+  const orClauses = [
+    { department: caseInsensitiveExact(department), level: levelNum },
+  ];
+
+  if (course.lecturer) {
+    orClauses.push({
+      lecturer: course.lecturer,
+      courseCode: { $ne: course.courseCode },
+    });
+  }
+
+  const clash = await Timetable.findOne({
+    day,
+    time,
+    session,
+    semester,
+    $or: orClauses,
+  });
+
+  return Boolean(clash);
+};
 
 const getStudentTimetableService = async ({ userId, session, semester }) => {
   const student = await Student.findById(userId);
@@ -378,52 +440,67 @@ const generateTimetableService = async ({
   level,
   session,
   semester,
+  performedBy,
+  ipAddress,
 }) => {
-  if (!department || !level || !session || !semester) {
-    throw new Error("Missing required fields");
+  // Auto-fetch active session if not provided
+  if (!session || !semester) {
+    const activeSession = await getActiveSession();
+    session = session || activeSession.session;
+    semester = semester || activeSession.semester;
   }
 
+  if (!department || level === undefined || level === null || level === "") {
+    throw new AppError("department and level are required", 400);
+  }
+
+  const normalizedDepartment = normalizeString(department);
+  const levelNum = Number(level);
+
   // Try to determine faculty from department by querying a student
-  const facultyQuery = { department: { $regex: new RegExp(`^${department}$`, "i") }, level };
-  const sampleStudent = await Student.findOne(facultyQuery).select("faculty");
+  const sampleStudent = await Student.findOne({
+    department: caseInsensitiveExact(department),
+    level: levelNum,
+  }).select("faculty");
   const faculty = sampleStudent?.faculty;
 
   // Query TimetableCourse to find all courses that match the department/faculty and level
   const courseQuery = {
     $or: [
-      // Department-based courses
       {
         targets: {
           $elemMatch: {
             type: "department",
-            name: { $regex: new RegExp(`^${department}$`, "i") },
-            level: level,
+            name: caseInsensitiveExact(department),
+            level: levelNum,
           },
         },
       },
-      // Faculty-based courses (if we can determine the faculty)
       ...(faculty
         ? [
             {
               targets: {
                 $elemMatch: {
                   type: "faculty",
-                  name: { $regex: new RegExp(`^${faculty}$`, "i") },
-                  level: level,
+                  name: caseInsensitiveExact(faculty),
+                  level: levelNum,
                 },
               },
             },
           ]
         : []),
     ],
+    session,
+    semester,
   };
-  courseQuery.session = session;
-  courseQuery.semester = semester;
 
   const timetableCourses = await TimetableCourse.find(courseQuery);
 
   if (!timetableCourses.length) {
-    throw new Error("No courses found");
+    throw new AppError(
+      "No courses found for this department, level, session, and semester",
+      404,
+    );
   }
 
   const schedule = [];
@@ -436,20 +513,18 @@ const generateTimetableService = async ({
       if (placed) break;
 
       for (const time of TIME_SLOTS) {
-        // Check for conflicts with existing timetable entries
-        const clash = await Timetable.findOne({
+        const conflict = await hasSlotConflict({
           day,
           time,
+          course,
+          department: normalizedDepartment,
+          level: levelNum,
           session,
           semester,
-          $or: [
-            { department: { $regex: new RegExp(`^${department}$`, "i") }, level },
-            { lecturer: course.lecturer },
-            { venue: course.venue },
-          ],
+          pendingSchedule: schedule,
         });
 
-        if (clash) continue;
+        if (conflict) continue;
 
         schedule.push({
           day,
@@ -459,9 +534,9 @@ const generateTimetableService = async ({
           creditUnit: course.creditUnit,
           lecturer: course.lecturer,
           lecturerPhone: course.lecturerPhone,
-          venue: null, // Will need to be set separately
-          department: department.trim().toUpperCase(),
-          level,
+          venue: null,
+          department: normalizedDepartment,
+          level: levelNum,
           session,
           semester,
         });
@@ -479,7 +554,30 @@ const generateTimetableService = async ({
     }
   }
 
-  const result = await Timetable.insertMany(schedule);
+  const result =
+    schedule.length > 0 ? await Timetable.insertMany(schedule) : [];
+
+  if (performedBy) {
+    await logAction({
+      performedBy,
+      action: "CREATE",
+      targetType: "TIMETABLE",
+      targetId: performedBy,
+      description: `Timetable generated for ${normalizedDepartment} level ${levelNum} — ${result.length} scheduled, ${unscheduled.length} unscheduled`,
+      changes: {
+        before: null,
+        after: {
+          department: normalizedDepartment,
+          level: levelNum,
+          session,
+          semester,
+          scheduled: result.length,
+          unscheduled: unscheduled.length,
+        },
+      },
+      ipAddress,
+    });
+  }
 
   return {
     data: result,

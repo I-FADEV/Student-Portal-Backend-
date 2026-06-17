@@ -11,7 +11,7 @@ const {
   getAllTimetable,
   deleteTimetableEntry,
   updateTimetableEntry,
-  // generateTimetableController is REMOVED — clash detection runs on frontend
+  generateTimetableController,
 } = require("../controllers/timetable.controller");
 
 // NEW — TimetableCourse controller
@@ -91,13 +91,20 @@ router.post(
   createTimetableEntry
 );
 
-// POST /timetable/bulk — save full generated timetable (array of entries)
-// Called by GenerateTimetable.jsx after frontend resolves all clashes
+// POST /timetable/bulk — save admin-reviewed timetable (array of entries)
 router.post(
   "/bulk",
   protect,
   roleCheck(["admin"], ["timetable_admin"]),
   createBulkTimetable
+);
+
+// POST /timetable/generate — auto-generate timetable from TimetableCourse catalog
+router.post(
+  "/generate",
+  protect,
+  roleCheck(["admin"], ["timetable_admin"]),
+  generateTimetableController
 );
 
 // PUT /timetable/:id — edit a single published entry
@@ -115,9 +122,5 @@ router.delete(
   roleCheck(["admin"], ["timetable_admin"]),
   deleteTimetableEntry
 );
-
-// NOTE: POST /timetable/generate has been REMOVED.
-// The frontend (GenerateTimetable.jsx) handles the clash-detection algorithm
-// and sends the final resolved entries to POST /timetable/bulk.
 
 module.exports = router;

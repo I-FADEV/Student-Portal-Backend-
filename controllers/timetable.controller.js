@@ -145,10 +145,11 @@ const generateTimetableController = async (req, res, next) => {
       level,
       session,
       semester,
+      performedBy: req.user.userId,
+      ipAddress: req.ip,
     });
 
     res.status(201).json({
-      success: true,
       message: "Timetable generated successfully",
       ...result,
     });
