@@ -18,13 +18,13 @@ const getStudentResult = async (req, res, next) => {
   try {
     const { session, semester } = req.query;
 
-    const { data } = await getStudentResultsService({
+    const result = await getStudentResultsService({
       userId: req.user.userId,
       session,
       semester,
     });
 
-    res.status(200).json({ data });
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }

@@ -1,98 +1,68 @@
 const Course = require("../models/course.model");
 const Student = require("../models/student.model");
 const Timetable = require("../models/timetable.model");
-const TimetableCourse = require("../models/timetableCourse.model");
 const logAction = require("../utils/logAction");
 const { getActiveSession } = require("../utils/activeSession");
+const AppError = require("../utils/appError");
+const { getTimetableCoursesForStudent } = require("../utils/studentCourseResolver");
 
 const getStudentCoursesService = async ({ userId, session, semester }) => {
   const student = await Student.findById(userId);
-  if (!student) throw new Error("Student not found");
+  if (!student) throw new AppError("Student not found", 404);
 
-  if (!student.department || !student.level) {
-    throw new Error(
+  if (!student.department || student.level == null) {
+    throw new AppError(
       "Your profile is incomplete. Department or level is missing.",
+      400,
     );
   }
 
-  // Query TimetableCourse to find all courses that match the student's profile
-  const courseQuery = {
-    $or: [
-      // Department-based courses
-      {
-        targets: {
-          $elemMatch: {
-            type: "department",
-            name: { $regex: new RegExp(`^${student.department}$`, "i") },
-            level: student.level,
-          },
-        },
-      },
-      // Faculty-based courses (if student has faculty)
-      ...(student.faculty
-        ? [
-            {
-              targets: {
-                $elemMatch: {
-                  type: "faculty",
-                  name: { $regex: new RegExp(`^${student.faculty}$`, "i") },
-                  level: student.level,
-                },
-              },
-            },
-          ]
-        : []),
-    ],
-  };
-  if (session) courseQuery.session = session;
-  if (semester) courseQuery.semester = semester;
+  const timetableCourses = await getTimetableCoursesForStudent(student, {
+    session,
+    semester,
+  });
 
-  const timetableCourses = await TimetableCourse.find(courseQuery);
-
-  // Get all course codes from matching TimetableCourse entries
-  const courseCodes = [...new Set(timetableCourses.map(c => c.courseCode))];
+  const courseCodes = [
+    ...new Set(timetableCourses.map((c) => c.courseCode.toUpperCase())),
+  ];
 
   if (courseCodes.length === 0) {
     return { data: [] };
   }
 
-  // Query Timetable entries for these courses
   const timetableQuery = {
     courseCode: { $in: courseCodes },
-    level: student.level,
+    level: Number(student.level),
   };
   if (session) timetableQuery.session = session;
   if (semester) timetableQuery.semester = semester;
 
-  const timetableEntries = await Timetable.find(timetableQuery).select({
-    courseCode: 1,
-    courseName: 1,
-    creditUnit: 1,
-    lecturer: 1,
-    lecturerPhone: 1,
-    department: 1,
-    level: 1,
-    session: 1,
-    semester: 1,
-  }).sort({
-    day: 1,
-    time: 1,
-  });
+  const timetableEntries = await Timetable.find(timetableQuery)
+    .select({
+      courseCode: 1,
+      courseName: 1,
+      creditUnit: 1,
+      lecturer: 1,
+      lecturerPhone: 1,
+      department: 1,
+      level: 1,
+      session: 1,
+      semester: 1,
+    })
+    .sort({ day: 1, time: 1 });
 
-  // Create a map of courseCode -> course details from TimetableCourse
   const courseDetailsMap = new Map();
   for (const course of timetableCourses) {
-    courseDetailsMap.set(course.courseCode, course);
+    courseDetailsMap.set(course.courseCode.toUpperCase(), course);
   }
 
-  // Extract unique courses from timetable entries with details from TimetableCourse
   const courseMap = new Map();
 
   for (const entry of timetableEntries) {
-    if (!courseMap.has(entry.courseCode)) {
-      const courseDetails = courseDetailsMap.get(entry.courseCode);
-      
-      // Start with entry data, then override with courseDetails if available
+    const codeKey = entry.courseCode.toUpperCase();
+    if (!courseMap.has(codeKey)) {
+      const courseDetails = courseDetailsMap.get(codeKey);
+
       const mergedCourse = {
         courseCode: entry.courseCode || courseDetails?.courseCode,
         courseName: entry.courseName || courseDetails?.courseName,
@@ -105,12 +75,11 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
         semester: entry.semester,
       };
 
-      // Override with courseDetails if available
       if (courseDetails) {
-        if (courseDetails.creditUnit !== null && courseDetails.creditUnit !== undefined) {
+        if (courseDetails.creditUnit != null) {
           mergedCourse.creditUnit = courseDetails.creditUnit;
         }
-        if (courseDetails.lecturerPhone !== null && courseDetails.lecturerPhone !== undefined) {
+        if (courseDetails.lecturerPhone != null) {
           mergedCourse.lecturerPhone = courseDetails.lecturerPhone;
         }
         if (courseDetails.lecturer) {
@@ -121,26 +90,40 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
         }
       }
 
-      courseMap.set(entry.courseCode, mergedCourse);
+      courseMap.set(codeKey, mergedCourse);
     }
   }
 
-  const uniqueCourses = [];
-  for (const entry of courseMap.values()) {
-    uniqueCourses.push({
-      code: entry.courseCode,
-      name: entry.courseName,
-      creditUnit: entry.creditUnit,
-      lecturer: entry.lecturer,
-      lecturerPhone: entry.lecturerPhone,
-      department: entry.department,
-      level: entry.level,
-      session: entry.session,
-      semester: entry.semester,
-    });
+  // Include catalog courses that have not been scheduled yet
+  for (const course of timetableCourses) {
+    const codeKey = course.courseCode.toUpperCase();
+    if (!courseMap.has(codeKey)) {
+      courseMap.set(codeKey, {
+        courseCode: course.courseCode,
+        courseName: course.courseName,
+        creditUnit: course.creditUnit,
+        lecturer: course.lecturer,
+        lecturerPhone: course.lecturerPhone,
+        department: student.department,
+        level: Number(student.level),
+        session: course.session,
+        semester: course.semester,
+      });
+    }
   }
 
-  console.log('uniqueCourses:', JSON.stringify(uniqueCourses, null, 2));
+  const uniqueCourses = [...courseMap.values()].map((entry) => ({
+    code: entry.courseCode,
+    name: entry.courseName,
+    creditUnit: entry.creditUnit,
+    lecturer: entry.lecturer,
+    lecturerPhone: entry.lecturerPhone,
+    department: entry.department,
+    level: entry.level,
+    session: entry.session,
+    semester: entry.semester,
+  }));
+
   return { data: uniqueCourses };
 };
 

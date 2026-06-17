@@ -6,11 +6,12 @@ const { DAYS, TIME_SLOTS } = require("../constants/timetable.constants");
 const logAction = require("../utils/logAction");
 const { getActiveSession } = require("../utils/activeSession");
 const AppError = require("../utils/appError");
-
-/** Case-insensitive exact match for department/faculty names in queries */
-const caseInsensitiveExact = (value) => ({
-  $regex: new RegExp(`^${String(value).trim()}$`, "i"),
-});
+const {
+  caseInsensitiveExact,
+  resolveFacultyFromDepartment,
+  getDepartmentsInFaculty,
+  getTimetableCoursesForStudent,
+} = require("../utils/studentCourseResolver");
 
 /**
  * Returns true if placing `course` at day/time conflicts with an entry
@@ -20,20 +21,20 @@ const hasSlotConflict = async ({
   day,
   time,
   course,
-  department,
+  departmentsToCheck,
   level,
   session,
   semester,
   pendingSchedule,
 }) => {
-  const deptNorm = normalizeString(department);
   const levelNum = Number(level);
+  const deptSet = new Set(departmentsToCheck.map((d) => normalizeString(d)));
 
   // Conflicts within the batch being built in this run
   for (const entry of pendingSchedule) {
     if (entry.day !== day || entry.time !== time) continue;
 
-    if (entry.department === deptNorm && entry.level === levelNum) return true;
+    if (deptSet.has(entry.department) && entry.level === levelNum) return true;
 
     if (
       entry.lecturer &&
@@ -46,9 +47,10 @@ const hasSlotConflict = async ({
   }
 
   // Conflicts with entries already saved in the database
-  const orClauses = [
-    { department: caseInsensitiveExact(department), level: levelNum },
-  ];
+  const orClauses = [...deptSet].map((dept) => ({
+    department: caseInsensitiveExact(dept),
+    level: levelNum,
+  }));
 
   if (course.lecturer) {
     orClauses.push({
@@ -70,65 +72,63 @@ const hasSlotConflict = async ({
 
 const getStudentTimetableService = async ({ userId, session, semester }) => {
   const student = await Student.findById(userId);
-  if (!student) throw new Error("Student not found");
+  if (!student) throw new AppError("Student not found", 404);
 
-  if (!student.department || !student.level) {
-    throw new Error(
+  if (!student.department || student.level == null) {
+    throw new AppError(
       "Your profile is incomplete. Department or level is missing.",
+      400,
     );
   }
 
-  // Query TimetableCourse to find all courses that match the student's profile
-  const courseQuery = {
-    $or: [
-      // Department-based courses
-      {
-        targets: {
-          $elemMatch: {
-            type: "department",
-            name: { $regex: new RegExp(`^${student.department}$`, "i") },
-            level: student.level,
-          },
-        },
-      },
-      // Faculty-based courses (if student has faculty)
-      ...(student.faculty
-        ? [
-            {
-              targets: {
-                $elemMatch: {
-                  type: "faculty",
-                  name: { $regex: new RegExp(`^${student.faculty}$`, "i") },
-                  level: student.level,
-                },
-              },
-            },
-          ]
-        : []),
-    ],
-  };
-  if (session) courseQuery.session = session;
-  if (semester) courseQuery.semester = semester;
+  const timetableCourses = await getTimetableCoursesForStudent(student, {
+    session,
+    semester,
+  });
 
-  const timetableCourses = await TimetableCourse.find(courseQuery);
-
-  // Get all course codes from matching TimetableCourse entries
-  const courseCodes = [...new Set(timetableCourses.map(c => c.courseCode))];
+  const courseCodes = [
+    ...new Set(timetableCourses.map((c) => c.courseCode.toUpperCase())),
+  ];
 
   if (courseCodes.length === 0) {
-    return { data: [] };
+    return { data: [], unscheduledCourses: [], summary: { totalCourses: 0, scheduled: 0, unscheduled: 0 } };
   }
 
-  // Query Timetable entries for these courses
   const query = {
     courseCode: { $in: courseCodes },
-    level: student.level,
+    level: Number(student.level),
   };
   if (session) query.session = session;
   if (semester) query.semester = semester;
 
   const timetable = await Timetable.find(query).sort({ day: 1, time: 1 });
-  return { data: timetable };
+
+  const scheduledCodes = new Set(
+    timetable.map((t) => t.courseCode.toUpperCase()),
+  );
+
+  const unscheduledCourses = timetableCourses
+    .filter((c) => !scheduledCodes.has(c.courseCode.toUpperCase()))
+    .map((c) => ({
+      courseCode: c.courseCode,
+      courseName: c.courseName,
+      creditUnit: c.creditUnit,
+      lecturer: c.lecturer,
+      lecturerPhone: c.lecturerPhone,
+      session: c.session,
+      semester: c.semester,
+      scheduled: false,
+    }));
+
+  return {
+    data: timetable,
+    unscheduledCourses,
+    summary: {
+      totalCourses: timetableCourses.length,
+      scheduled: scheduledCodes.size,
+      unscheduled: unscheduledCourses.length,
+    },
+  };
 };
 
 const createTimetableEntryService = async ({
@@ -457,14 +457,19 @@ const generateTimetableService = async ({
   const normalizedDepartment = normalizeString(department);
   const levelNum = Number(level);
 
-  // Try to determine faculty from department by querying a student
-  const sampleStudent = await Student.findOne({
-    department: caseInsensitiveExact(department),
-    level: levelNum,
-  }).select("faculty");
-  const faculty = sampleStudent?.faculty;
+  // Resolve faculty from registry (not just from a student record)
+  const facultyName = await resolveFacultyFromDepartment(department);
+  const facultyDepartments = facultyName
+    ? (await getDepartmentsInFaculty(facultyName)).map((d) =>
+        normalizeString(d),
+      )
+    : [normalizedDepartment];
 
-  // Query TimetableCourse to find all courses that match the department/faculty and level
+  if (!facultyDepartments.includes(normalizedDepartment)) {
+    facultyDepartments.push(normalizedDepartment);
+  }
+
+  // Query TimetableCourse — department courses + faculty-wide courses
   const courseQuery = {
     $or: [
       {
@@ -476,13 +481,13 @@ const generateTimetableService = async ({
           },
         },
       },
-      ...(faculty
+      ...(facultyName
         ? [
             {
               targets: {
                 $elemMatch: {
                   type: "faculty",
-                  name: caseInsensitiveExact(faculty),
+                  name: caseInsensitiveExact(facultyName),
                   level: levelNum,
                 },
               },
@@ -509,6 +514,18 @@ const generateTimetableService = async ({
   for (const course of timetableCourses) {
     let placed = false;
 
+    // Faculty-wide courses block the slot for every department in the faculty
+    const isFacultyCourse = course.targets.some(
+      (t) =>
+        t.type === "faculty" &&
+        facultyName &&
+        t.name.toLowerCase() === facultyName.toLowerCase() &&
+        Number(t.level) === levelNum,
+    );
+    const departmentsToCheck = isFacultyCourse
+      ? facultyDepartments
+      : [normalizedDepartment];
+
     for (const day of DAYS) {
       if (placed) break;
 
@@ -517,7 +534,7 @@ const generateTimetableService = async ({
           day,
           time,
           course,
-          department: normalizedDepartment,
+          departmentsToCheck,
           level: levelNum,
           session,
           semester,

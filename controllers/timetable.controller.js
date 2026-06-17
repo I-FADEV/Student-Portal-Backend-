@@ -12,13 +12,13 @@ const getStudentTimetable = async (req, res, next) => {
   try {
     const { session, semester } = req.query;
 
-    const { data } = await getStudentTimetableService({
+    const result = await getStudentTimetableService({
       userId: req.user.userId,
       session,
       semester,
     });
 
-    res.status(200).json({ data });
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }

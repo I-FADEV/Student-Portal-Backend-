@@ -6,17 +6,89 @@ const TimetableCourse = require("../models/timetableCourse.model");
 const calculateGrade = require("../utils/resultCalculator");
 const logAction      = require("../utils/logAction");
 const { getActiveSession } = require("../utils/activeSession");
+const AppError       = require("../utils/appError");
+const {
+  getTimetableCoursesForStudent,
+  buildStudentQueriesForTargets,
+} = require("../utils/studentCourseResolver");
 
-// ── STUDENT: view own results ─────────────────────────────────────────────────
+// ── STUDENT: view own results (all enrolled courses + grades where uploaded) ──
 const getStudentResultsService = async ({ userId, session, semester }) => {
-  const query = { student: userId };
-  if (session)  query.session  = session;
-  if (semester) query.semester = semester;
+  const student = await Student.findById(userId);
+  if (!student) throw new AppError("Student not found", 404);
 
-  const results = await Result.find(query).sort({
-    session: -1, semester: 1, courseCode: 1,
+  const enrolledCourses = await getTimetableCoursesForStudent(student, {
+    session,
+    semester,
   });
-  return { data: results };
+
+  const resultQuery = { student: userId };
+  if (session) resultQuery.session = session;
+  if (semester) resultQuery.semester = semester;
+
+  const results = await Result.find(resultQuery).sort({
+    session: -1,
+    semester: 1,
+    courseCode: 1,
+  });
+
+  const resultByCode = new Map();
+  for (const result of results) {
+    resultByCode.set(result.courseCode.toUpperCase(), result);
+  }
+
+  const merged = [];
+  const seenCodes = new Set();
+
+  for (const course of enrolledCourses) {
+    const codeKey = course.courseCode.toUpperCase();
+    seenCodes.add(codeKey);
+
+    const existing = resultByCode.get(codeKey);
+    if (existing) {
+      merged.push(existing);
+      continue;
+    }
+
+    merged.push({
+      student: userId,
+      courseCode: course.courseCode,
+      courseName: course.courseName,
+      creditUnit: course.creditUnit,
+      test: null,
+      exam: null,
+      total: null,
+      grade: null,
+      session: session || course.session,
+      semester: semester || course.semester,
+      pending: true,
+    });
+  }
+
+  // Include uploaded results that are not in the current course catalog
+  for (const result of results) {
+    if (!seenCodes.has(result.courseCode.toUpperCase())) {
+      merged.push(result);
+    }
+  }
+
+  merged.sort((a, b) => a.courseCode.localeCompare(b.courseCode));
+
+  const enrolledCodes = new Set(
+    enrolledCourses.map((c) => c.courseCode.toUpperCase()),
+  );
+  const withResults = results.filter((r) =>
+    enrolledCodes.has(r.courseCode.toUpperCase()),
+  ).length;
+
+  return {
+    data: merged,
+    summary: {
+      totalCourses: enrolledCourses.length,
+      withResults,
+      pending: enrolledCourses.length - withResults,
+    },
+  };
 };
 
 // ── TIMETABLE ADMIN: upload single result ─────────────────────────────────────
@@ -309,22 +381,8 @@ const getStudentsForCourseService = async ({ courseCode, session, semester }) =>
     throw new AppError(`Course ${courseCode.toUpperCase()} not found for ${session} ${semester}`, 404);
   }
 
-  // Build student query based on course targets
-  const studentQueries = [];
-
-  for (const target of course.targets) {
-    if (target.type === "department") {
-      studentQueries.push({
-        department: { $regex: new RegExp(`^${target.name}$`, "i") },
-        level: target.level,
-      });
-    } else if (target.type === "faculty") {
-      studentQueries.push({
-        faculty: { $regex: new RegExp(`^${target.name}$`, "i") },
-        level: target.level,
-      });
-    }
-  }
+  // Build student query based on course targets (faculty targets expand to all departments)
+  const studentQueries = await buildStudentQueriesForTargets(course.targets);
 
   if (studentQueries.length === 0) {
     throw new AppError("No targets set for this course", 400);
