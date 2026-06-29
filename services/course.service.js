@@ -22,35 +22,58 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
     semester,
   });
 
-  const courseCodes = [
-    ...new Set(timetableCourses.map((c) => c.courseCode.toUpperCase())),
-  ];
+  if (timetableCourses.length === 0) return { data: [] };
 
-  if (courseCodes.length === 0) {
-    return { data: [] };
+  // ── Split into dept courses vs faculty courses ──────────────────────────────
+  const { resolveFacultyFromDepartment } = require("../utils/studentCourseResolver");
+  const resolvedFaculty = await resolveFacultyFromDepartment(student.department);
+
+  const facultyCourseCodes = new Set();
+  const deptCourseCodes = new Set();
+
+  for (const tc of timetableCourses) {
+    const isFaculty = tc.targets.some(
+      (t) =>
+        t.type === "faculty" &&
+        resolvedFaculty &&
+        t.name.toLowerCase() === resolvedFaculty.toLowerCase() &&
+        Number(t.level) === Number(student.level),
+    );
+    if (isFaculty) {
+      facultyCourseCodes.add(tc.courseCode.toUpperCase());
+    } else {
+      deptCourseCodes.add(tc.courseCode.toUpperCase());
+    }
   }
 
-  const timetableQuery = {
-    courseCode: { $in: courseCodes },
-    level: Number(student.level),
-  };
-  if (session) timetableQuery.session = session;
-  if (semester) timetableQuery.semester = semester;
+  // ── Build filtered timetable query ─────────────────────────────────────────
+  // Dept courses: strictly this student's own department
+  // Faculty courses: any entry (we'll stamp the student's dept on them below)
+  const orClauses = [];
 
-  const timetableEntries = await Timetable.find(timetableQuery)
-    .select({
-      courseCode: 1,
-      courseName: 1,
-      creditUnit: 1,
-      lecturer: 1,
-      lecturerPhone: 1,
-      department: 1,
-      level: 1,
-      session: 1,
-      semester: 1,
-    })
-    .sort({ day: 1, time: 1 });
+  if (deptCourseCodes.size > 0) {
+    const deptClause = {
+      courseCode: { $in: [...deptCourseCodes] },
+      department: { $regex: new RegExp(`^${student.department}$`, "i") },
+      level: Number(student.level),
+    };
+    if (session) deptClause.session = session;
+    if (semester) deptClause.semester = semester;
+    orClauses.push(deptClause);
+  }
 
+  if (facultyCourseCodes.size > 0) {
+    const facultyClause = {
+      courseCode: { $in: [...facultyCourseCodes] },
+      level: Number(student.level),
+    };
+    if (session) facultyClause.session = session;
+    if (semester) facultyClause.semester = semester;
+    orClauses.push(facultyClause);
+  }
+
+  // Build a lookup map from TimetableCourse catalog (source of truth for
+  // creditUnit, lecturer, lecturerPhone, courseName)
   const courseDetailsMap = new Map();
   for (const course of timetableCourses) {
     courseDetailsMap.set(course.courseCode.toUpperCase(), course);
@@ -58,70 +81,77 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
 
   const courseMap = new Map();
 
-  for (const entry of timetableEntries) {
-    const codeKey = entry.courseCode.toUpperCase();
-    if (!courseMap.has(codeKey)) {
+  // ── Process scheduled entries ──────────────────────────────────────────────
+  if (orClauses.length > 0) {
+    const timetableEntries = await Timetable.find({ $or: orClauses })
+      .select({
+        courseCode: 1,
+        courseName: 1,
+        creditUnit: 1,
+        lecturer: 1,
+        lecturerPhone: 1,
+        department: 1,
+        level: 1,
+        session: 1,
+        semester: 1,
+      })
+      .sort({ day: 1, time: 1 });
+
+    for (const entry of timetableEntries) {
+      const codeKey = entry.courseCode.toUpperCase();
+      if (courseMap.has(codeKey)) continue; // already picked one entry
+
       const courseDetails = courseDetailsMap.get(codeKey);
 
-      const mergedCourse = {
-        courseCode: entry.courseCode || courseDetails?.courseCode,
-        courseName: entry.courseName || courseDetails?.courseName,
-        creditUnit: entry.creditUnit,
-        lecturer: entry.lecturer,
-        lecturerPhone: entry.lecturerPhone,
-        department: entry.department,
-        level: entry.level,
-        session: entry.session,
-        semester: entry.semester,
-      };
+      // For faculty courses, always stamp the student's own department —
+      // never the entry's raw department (which could be Biochemistry etc.)
+      const isFacultyCourse = facultyCourseCodes.has(codeKey);
+      const department = isFacultyCourse
+        ? student.department
+        : entry.department;
 
-      if (courseDetails) {
-        if (courseDetails.creditUnit != null) {
-          mergedCourse.creditUnit = courseDetails.creditUnit;
-        }
-        if (courseDetails.lecturerPhone != null) {
-          mergedCourse.lecturerPhone = courseDetails.lecturerPhone;
-        }
-        if (courseDetails.lecturer) {
-          mergedCourse.lecturer = courseDetails.lecturer;
-        }
-        if (courseDetails.courseName) {
-          mergedCourse.courseName = courseDetails.courseName;
-        }
-      }
-
-      courseMap.set(codeKey, mergedCourse);
-    }
-  }
-
-  // Include catalog courses that have not been scheduled yet
-  for (const course of timetableCourses) {
-    const codeKey = course.courseCode.toUpperCase();
-    if (!courseMap.has(codeKey)) {
       courseMap.set(codeKey, {
-        courseCode: course.courseCode,
-        courseName: course.courseName,
-        creditUnit: course.creditUnit,
-        lecturer: course.lecturer,
-        lecturerPhone: course.lecturerPhone,
-        department: student.department,
-        level: Number(student.level),
-        session: course.session,
-        semester: course.semester,
+        courseCode:    courseDetails?.courseCode  || entry.courseCode,
+        courseName:    courseDetails?.courseName  || entry.courseName,
+        creditUnit:    courseDetails?.creditUnit  ?? entry.creditUnit,
+        lecturer:      courseDetails?.lecturer    || entry.lecturer,
+        lecturerPhone: courseDetails?.lecturerPhone || entry.lecturerPhone,
+        department,
+        level:    Number(student.level),
+        session:  entry.session,
+        semester: entry.semester,
       });
     }
   }
 
+  // ── Unscheduled courses (in catalog but not yet on timetable) ──────────────
+  for (const course of timetableCourses) {
+    const codeKey = course.courseCode.toUpperCase();
+    if (courseMap.has(codeKey)) continue;
+
+    courseMap.set(codeKey, {
+      courseCode:    course.courseCode,
+      courseName:    course.courseName,
+      creditUnit:    course.creditUnit,
+      lecturer:      course.lecturer,
+      lecturerPhone: course.lecturerPhone,
+      department:    student.department, // always the student's own dept
+      level:         Number(student.level),
+      session:       course.session,
+      semester:      course.semester,
+    });
+  }
+
   const uniqueCourses = [...courseMap.values()].map((entry) => ({
-    code: entry.courseCode,
-    name: entry.courseName,
-    creditUnit: entry.creditUnit,
-    lecturer: entry.lecturer,
+    code:          entry.courseCode,
+    name:          entry.courseName,
+    creditUnit:    entry.creditUnit,
+    lecturer:      entry.lecturer,
     lecturerPhone: entry.lecturerPhone,
-    department: entry.department,
-    level: entry.level,
-    session: entry.session,
-    semester: entry.semester,
+    department:    entry.department,
+    level:         entry.level,
+    session:       entry.session,
+    semester:      entry.semester,
   }));
 
   return { data: uniqueCourses };

@@ -101,17 +101,123 @@ const getStudentTimetableService = async ({ userId, session, semester }) => {
   ];
 
   if (courseCodes.length === 0) {
-    return { data: [], unscheduledCourses: [], summary: { totalCourses: 0, scheduled: 0, unscheduled: 0 } };
+    return {
+      data: [],
+      unscheduledCourses: [],
+      summary: { totalCourses: 0, scheduled: 0, unscheduled: 0 },
+    };
   }
 
-  const query = {
-    courseCode: { $in: courseCodes },
-    level: Number(student.level),
-  };
-  if (session) query.session = session;
-  if (semester) query.semester = semester;
+  // ── FIX Issue 3: Separate dept courses from faculty courses ─────────────────
+  // Without this, a faculty course (e.g. ENG 101) scheduled for every dept
+  // returns ALL dept entries (Biochemistry, Geology, etc.) for this student.
 
-  const timetable = await Timetable.find(query).sort({ day: 1, time: 1 });
+  const resolvedFaculty = await resolveFacultyFromDepartment(student.department);
+
+  const facultyCourseCodes = new Set();
+  const deptCourseCodes = new Set();
+
+  for (const tc of timetableCourses) {
+    const isFaculty = tc.targets.some(
+      (t) =>
+        t.type === "faculty" &&
+        resolvedFaculty &&
+        t.name.toLowerCase() === resolvedFaculty.toLowerCase() &&
+        Number(t.level) === Number(student.level),
+    );
+    if (isFaculty) {
+      facultyCourseCodes.add(tc.courseCode.toUpperCase());
+    } else {
+      deptCourseCodes.add(tc.courseCode.toUpperCase());
+    }
+  }
+
+  // Build $or query:
+  // - Dept courses: only this student's own department
+  // - Faculty courses: any entry (they all share the same slot; we dedup below)
+  const orClauses = [];
+
+  if (deptCourseCodes.size > 0) {
+    const deptClause = {
+      courseCode: { $in: [...deptCourseCodes] },
+      department: { $regex: new RegExp(`^${student.department}$`, "i") },
+      level: Number(student.level),
+    };
+    if (session) deptClause.session = session;
+    if (semester) deptClause.semester = semester;
+    orClauses.push(deptClause);
+  }
+
+  if (facultyCourseCodes.size > 0) {
+    const facultyClause = {
+      courseCode: { $in: [...facultyCourseCodes] },
+      level: Number(student.level),
+    };
+    if (session) facultyClause.session = session;
+    if (semester) facultyClause.semester = semester;
+    orClauses.push(facultyClause);
+  }
+
+  // If somehow both sets are empty (shouldn't happen after the check above), bail
+  if (orClauses.length === 0) {
+    return {
+      data: [],
+      unscheduledCourses: [],
+      summary: { totalCourses: 0, scheduled: 0, unscheduled: 0 },
+    };
+  }
+
+  const rawTimetable = await Timetable.find({ $or: orClauses }).sort({
+    day: 1,
+    time: 1,
+  });
+
+  // Deduplicate: for faculty courses, keep only ONE entry per courseCode
+  // (prefer this student's own dept entry if it exists, otherwise any)
+  const seen = new Set();
+  const timetable = [];
+
+  // First pass: pick this student's own dept entry for faculty courses if available
+  for (const entry of rawTimetable) {
+    const key = entry.courseCode.toUpperCase();
+    if (facultyCourseCodes.has(key)) {
+      if (
+        !seen.has(key) &&
+        entry.department.toLowerCase() === student.department.toLowerCase()
+      ) {
+        seen.add(key);
+        timetable.push(entry);
+      }
+    } else {
+      // Dept course — always include (already filtered by dept in query)
+      timetable.push(entry);
+    }
+  }
+
+  // Second pass: for faculty courses not yet picked (no entry for this dept),
+  // fall back to any entry
+  for (const entry of rawTimetable) {
+    const key = entry.courseCode.toUpperCase();
+    if (facultyCourseCodes.has(key) && !seen.has(key)) {
+      seen.add(key);
+      timetable.push(entry);
+    }
+  }
+
+  // Re-sort after the two-pass dedup
+  timetable.sort((a, b) => {
+    const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const slotOrder = [
+      "8:00 - 10:00",
+      "10:00 - 12:00",
+      "1:00 - 3:00",
+      "3:00 - 5:00",
+    ];
+    const dayDiff = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+    if (dayDiff !== 0) return dayDiff;
+    return slotOrder.indexOf(a.time) - slotOrder.indexOf(b.time);
+  });
+  // ── End Fix Issue 3 ──────────────────────────────────────────────────────────
 
   const scheduledCodes = new Set(
     timetable.map((t) => t.courseCode.toUpperCase()),
@@ -309,7 +415,7 @@ const createBulkTimetableService = async ({
     performedBy,
     action: "CREATE",
     targetType: "TIMETABLE",
-    targetId: performedBy, // no single target — use admin id as stand-in
+    targetId: performedBy,
     description: `Bulk timetable upload — ${result.length} entries created, ${errors.length} failed`,
     changes: {
       before: null,
@@ -338,7 +444,8 @@ const getAllTimetableService = async ({
   semester,
 }) => {
   const query = {};
-  if (department) query.department = { $regex: new RegExp(`^${department}$`, "i") };
+  if (department)
+    query.department = { $regex: new RegExp(`^${department}$`, "i") };
   if (level) query.level = Number(level);
   if (session) query.session = session;
   if (semester) query.semester = semester;
@@ -368,7 +475,6 @@ const updateTimetableEntryService = async ({
   performedBy,
   ipAddress,
 }) => {
-  // Grab the old entry so we can log what changed
   const oldEntry = await Timetable.findById(entryId);
   if (!oldEntry) throw new Error("Timetable entry not found");
 
@@ -527,15 +633,28 @@ const generateTimetableService = async ({
         Number(t.level) === levelNum,
     );
 
+    // ── FIX Issue 1: Guard — skip if already scheduled for this dept ──────────
+    // Prevents re-generating the same course on repeated generate calls.
+    const alreadyScheduled = await Timetable.findOne({
+      courseCode: course.courseCode,
+      department: normalizedDepartment,
+      level: levelNum,
+      session,
+      semester,
+    });
+    if (alreadyScheduled) {
+      placed = true;
+    }
+    // ── End Fix Issue 1 ───────────────────────────────────────────────────────
+
     const departmentsToCheck = isFacultyCourse
       ? facultyDepartments
       : [normalizedDepartment];
 
-    // ── FIX: Faculty course deduplication ──────────────────────────────────
-    // If this faculty course was already placed (by an earlier dept generation),
-    // reuse the EXACT same day+time so all depts stay in sync.
-    // Without this, Dept B gets a different time than Dept A for the same course.
-    if (isFacultyCourse) {
+    // ── Faculty course deduplication ──────────────────────────────────────────
+    // If this faculty course was already placed by an earlier dept generation,
+    // mirror the exact same day+time for this dept so all depts stay in sync.
+    if (!placed && isFacultyCourse) {
       const existingEntry = await Timetable.findOne({
         courseCode: course.courseCode,
         session,
@@ -544,7 +663,6 @@ const generateTimetableService = async ({
       });
 
       if (existingEntry) {
-        // Check if current dept's slot is free at that exact day+time
         const slotTakenInPending = schedule.some(
           (e) =>
             e.day === existingEntry.day &&
@@ -563,7 +681,6 @@ const generateTimetableService = async ({
         });
 
         if (!slotTakenInPending && !slotTakenInDb) {
-          // Mirror the exact same slot for this department
           schedule.push({
             day: existingEntry.day,
             time: existingEntry.time,
@@ -580,14 +697,12 @@ const generateTimetableService = async ({
           });
         }
 
-        // Mark as placed either way — student query will find it
-        // through any department's entry since we don't filter by dept
         placed = true;
       }
     }
-    // ── End faculty dedup ──────────────────────────────────────────────────
+    // ── End faculty dedup ─────────────────────────────────────────────────────
 
-    // ── FIX: Randomized slot assignment ───────────────────────────────────
+    // ── Randomized slot assignment ────────────────────────────────────────────
     if (!placed) {
       const shuffledDays = shuffleArray(DAYS);
       for (const day of shuffledDays) {
@@ -627,6 +742,7 @@ const generateTimetableService = async ({
         }
       }
     }
+    // ── End randomized slot assignment ────────────────────────────────────────
 
     if (!placed) {
       unscheduled.push({
