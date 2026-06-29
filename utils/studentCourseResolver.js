@@ -15,7 +15,6 @@ const resolveStudentFaculty = async (student) => {
   if (student.faculty) {
     return String(student.faculty).trim();
   }
-
   if (!student.department) return null;
 
   const department = await Department.findOne({
@@ -45,12 +44,9 @@ const getDepartmentsInFaculty = async (facultyName) => {
   const faculty = await Faculty.findOne({
     name: caseInsensitiveExact(facultyName),
   });
-
   if (!faculty) return [];
 
-  const departments = await Department.find({ faculty: faculty._id }).select(
-    "name",
-  );
+  const departments = await Department.find({ faculty: faculty._id }).select("name");
   return departments.map((d) => d.name);
 };
 
@@ -91,19 +87,50 @@ const buildStudentCourseTargetQuery = (student, facultyName) => {
  * Find all TimetableCourse records a student should take
  * (their department courses + faculty-wide courses).
  */
-const getTimetableCoursesForStudent = async (
-  student,
-  { session, semester } = {},
-) => {
-  const facultyName = await resolveStudentFaculty(student);
-  const courseQuery = {
-    $or: buildStudentCourseTargetQuery(student, facultyName),
-  };
+const getTimetableCoursesForStudent = async (student, { session, semester }) => {
+  const { department, level } = student;
+  let { faculty } = student;
 
-  if (session) courseQuery.session = session;
-  if (semester) courseQuery.semester = semester;
+  if (!department || level == null) return [];
 
-  return TimetableCourse.find(courseQuery);
+  // student.faculty can be null if not set at registration —
+  // resolve it from the department registry the same way generation does.
+  if (!faculty) {
+    faculty = await resolveFacultyFromDepartment(department);
+  }
+
+  const levelNum = Number(level);
+  const orClauses = [];
+
+  // 1️⃣ Departmental courses — only this student's own department
+  orClauses.push({
+    targets: {
+      $elemMatch: {
+        type: "department",
+        name: caseInsensitiveExact(department),
+        level: levelNum,
+      },
+    },
+  });
+
+  // 2️⃣ Faculty-wide courses — shared across all depts in the faculty
+  if (faculty) {
+    orClauses.push({
+      targets: {
+        $elemMatch: {
+          type: "faculty",
+          name: caseInsensitiveExact(faculty),
+          level: levelNum,
+        },
+      },
+    });
+  }
+
+  const query = { $or: orClauses };
+  if (session)  query.session  = session;
+  if (semester) query.semester = semester;
+
+  return TimetableCourse.find(query);
 };
 
 /**
@@ -126,14 +153,12 @@ const buildStudentQueriesForTargets = async (targets) => {
 
     if (target.type === "faculty") {
       const deptNames = await getDepartmentsInFaculty(target.name);
-
       for (const deptName of deptNames) {
         studentQueries.push({
           department: caseInsensitiveExact(deptName),
           level,
         });
       }
-
       // Also match students with faculty set directly on their profile
       studentQueries.push({
         faculty: caseInsensitiveExact(target.name),

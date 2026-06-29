@@ -13,6 +13,16 @@ const {
   getTimetableCoursesForStudent,
 } = require("../utils/studentCourseResolver");
 
+// Fisher-Yates shuffle — returns a new shuffled copy, never mutates original
+const shuffleArray = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
 /**
  * Returns true if placing `course` at day/time conflicts with an entry
  * already in the in-memory batch or an existing DB row.
@@ -443,7 +453,6 @@ const generateTimetableService = async ({
   performedBy,
   ipAddress,
 }) => {
-  // Auto-fetch active session if not provided
   if (!session || !semester) {
     const activeSession = await getActiveSession();
     session = session || activeSession.session;
@@ -457,19 +466,15 @@ const generateTimetableService = async ({
   const normalizedDepartment = normalizeString(department);
   const levelNum = Number(level);
 
-  // Resolve faculty from registry (not just from a student record)
   const facultyName = await resolveFacultyFromDepartment(department);
   const facultyDepartments = facultyName
-    ? (await getDepartmentsInFaculty(facultyName)).map((d) =>
-        normalizeString(d),
-      )
+    ? (await getDepartmentsInFaculty(facultyName)).map((d) => normalizeString(d))
     : [normalizedDepartment];
 
   if (!facultyDepartments.includes(normalizedDepartment)) {
     facultyDepartments.push(normalizedDepartment);
   }
 
-  // Query TimetableCourse — department courses + faculty-wide courses
   const courseQuery = {
     $or: [
       {
@@ -514,7 +519,6 @@ const generateTimetableService = async ({
   for (const course of timetableCourses) {
     let placed = false;
 
-    // Faculty-wide courses block the slot for every department in the faculty
     const isFacultyCourse = course.targets.some(
       (t) =>
         t.type === "faculty" &&
@@ -522,44 +526,105 @@ const generateTimetableService = async ({
         t.name.toLowerCase() === facultyName.toLowerCase() &&
         Number(t.level) === levelNum,
     );
+
     const departmentsToCheck = isFacultyCourse
       ? facultyDepartments
       : [normalizedDepartment];
 
-    for (const day of DAYS) {
-      if (placed) break;
+    // ── FIX: Faculty course deduplication ──────────────────────────────────
+    // If this faculty course was already placed (by an earlier dept generation),
+    // reuse the EXACT same day+time so all depts stay in sync.
+    // Without this, Dept B gets a different time than Dept A for the same course.
+    if (isFacultyCourse) {
+      const existingEntry = await Timetable.findOne({
+        courseCode: course.courseCode,
+        session,
+        semester,
+        level: levelNum,
+      });
 
-      for (const time of TIME_SLOTS) {
-        const conflict = await hasSlotConflict({
-          day,
-          time,
-          course,
-          departmentsToCheck,
-          level: levelNum,
-          session,
-          semester,
-          pendingSchedule: schedule,
-        });
+      if (existingEntry) {
+        // Check if current dept's slot is free at that exact day+time
+        const slotTakenInPending = schedule.some(
+          (e) =>
+            e.day === existingEntry.day &&
+            e.time === existingEntry.time &&
+            e.department === normalizedDepartment &&
+            e.level === levelNum,
+        );
 
-        if (conflict) continue;
-
-        schedule.push({
-          day,
-          time,
-          courseCode: course.courseCode,
-          courseName: course.courseName,
-          creditUnit: course.creditUnit,
-          lecturer: course.lecturer,
-          lecturerPhone: course.lecturerPhone,
-          venue: null,
+        const slotTakenInDb = await Timetable.findOne({
+          day: existingEntry.day,
+          time: existingEntry.time,
           department: normalizedDepartment,
           level: levelNum,
           session,
           semester,
         });
 
+        if (!slotTakenInPending && !slotTakenInDb) {
+          // Mirror the exact same slot for this department
+          schedule.push({
+            day: existingEntry.day,
+            time: existingEntry.time,
+            courseCode: course.courseCode,
+            courseName: course.courseName,
+            creditUnit: course.creditUnit,
+            lecturer: course.lecturer,
+            lecturerPhone: course.lecturerPhone,
+            venue: null,
+            department: normalizedDepartment,
+            level: levelNum,
+            session,
+            semester,
+          });
+        }
+
+        // Mark as placed either way — student query will find it
+        // through any department's entry since we don't filter by dept
         placed = true;
-        break;
+      }
+    }
+    // ── End faculty dedup ──────────────────────────────────────────────────
+
+    // ── FIX: Randomized slot assignment ───────────────────────────────────
+    if (!placed) {
+      const shuffledDays = shuffleArray(DAYS);
+      for (const day of shuffledDays) {
+        if (placed) break;
+        const shuffledSlots = shuffleArray(TIME_SLOTS);
+        for (const time of shuffledSlots) {
+          const conflict = await hasSlotConflict({
+            day,
+            time,
+            course,
+            departmentsToCheck,
+            level: levelNum,
+            session,
+            semester,
+            pendingSchedule: schedule,
+          });
+
+          if (conflict) continue;
+
+          schedule.push({
+            day,
+            time,
+            courseCode: course.courseCode,
+            courseName: course.courseName,
+            creditUnit: course.creditUnit,
+            lecturer: course.lecturer,
+            lecturerPhone: course.lecturerPhone,
+            venue: null,
+            department: normalizedDepartment,
+            level: levelNum,
+            session,
+            semester,
+          });
+
+          placed = true;
+          break;
+        }
       }
     }
 
