@@ -9,6 +9,7 @@ const { uploadDirectory } = require('../config/environment');
 const IdCard = require('../models/idcard.model');
 const AppError = require('../utils/appError');
 const logAction = require('../utils/logAction');
+const mediaStorage = require('./mediaStorage.service');
 
 function photoPath(filename) {
   if (!filename || path.basename(filename) !== filename || filename.includes('..')) throw new AppError('Invalid photo', 400);
@@ -18,12 +19,11 @@ async function storePhoto(buffer) {
   let data;
   try { data = await sharp(buffer, { limitInputPixels: 16000000 }).rotate().resize(800, 1000, { fit: 'cover' }).jpeg({ quality: 90 }).toBuffer(); }
   catch { throw new AppError('Upload a valid JPEG or PNG passport photograph', 400); }
-  await fs.mkdir(uploadDirectory(), { recursive: true });
-  const filename = `${crypto.randomUUID()}.jpg`;
-  await fs.writeFile(photoPath(filename), data, { flag: 'wx' });
-  return filename;
+  const filename = `${mediaStorage.validateCloudinary()?'cld_':''}${crypto.randomBytes(16).toString('hex')}.jpg`;
+  return mediaStorage.store(data,'passport',filename);
 }
-async function removePhoto(filename) { await fs.unlink(photoPath(filename)).catch(() => {}); }
+async function removePhoto(filename) { await mediaStorage.remove('passport',filename).catch(() => {}); }
+async function readPhoto(filename) { return mediaStorage.read('passport',filename); }
 async function approve(id, user, ipAddress) {
   const card = await IdCard.findById(id);
   if (!card || card.status !== 'pending') throw new AppError('Only pending submissions can be approved', 409);
@@ -66,7 +66,7 @@ async function render(card) {
     front.drawText(safe,{x:x*sx,y:height-y*sy,size:actual,font:f,color:rgb(.02,.08,.15)});
   };
   box(7,58,70,94);
-  const photo = await pdf.embedJpg(await sharp(await fs.readFile(photoPath(card.photoURL))).resize(700,940,{fit:'cover'}).jpeg().toBuffer());
+  const photo = await pdf.embedJpg(await sharp(await readPhoto(card.photoURL)).resize(700,940,{fit:'cover'}).jpeg().toBuffer());
   front.drawImage(photo,{x:7*sx,y:height-152*sy,width:70*sx,height:94*sy});
   // White fields cover all sample personal details while retaining labels and blue bands.
   box(96,53,148,10.5); text(card.fullName,99,61,143,6.8,true);
@@ -102,4 +102,4 @@ async function printable(id,user,ipAddress) {
   await logAction({performedBy:user.userId,ipAddress,action:'UPDATE',targetType:'IDCARD',targetId:id,affectedStudent:card.student,description:'Front and back ID-card PDF generated'});
   return buffer;
 }
-module.exports={storePhoto,removePhoto,photoPath,approve,renew,render,printable};
+module.exports={storePhoto,removePhoto,photoPath,readPhoto,approve,renew,render,printable};

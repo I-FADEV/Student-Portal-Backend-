@@ -1,9 +1,9 @@
-const router=require('express').Router(),mongoose=require('mongoose'),path=require('node:path'),fs=require('node:fs/promises'),crypto=require('node:crypto'),sharp=require('sharp'),multer=require('multer');
+const router=require('express').Router(),mongoose=require('mongoose'),crypto=require('node:crypto'),sharp=require('sharp'),multer=require('multer');
 const {FeedPost:Post,FeedComment:Comment,FeedLike:Like}=require('../models/feed.model');
 const Student=require('../models/student.model'),Admin=require('../models/admin.model'),Staff=require('../models/staff.model'),Announcement=require('../models/announcement.model'),Receipt=require('../models/announcementReceipt.model'),Subscription=require('../models/pushSubscription.model'),Delivery=require('../models/pushDelivery.model'),Audit=require('../models/auditLog.model');
 const AppError=require('../utils/appError'),roles=require('../middleware/roleCheck.middleware');
+const mediaStorage=require('../services/mediaStorage.service');
 const wrap=fn=>async(req,res,next)=>{try{await fn(req,res)}catch(e){next(e)}};
-const folder=()=>path.resolve(process.env.UPLOAD_DIR||path.join(__dirname,'../uploads'),'feed');
 const actor=req=>({author:req.user.userId,authorRole:req.user.role,authorName:req.account.name||req.account.username});
 const moderator=req=>req.user.role==='admin';
 const canPost=req=>moderator(req)||req.user.role==='student'&&req.account.canPostFeed===true;
@@ -19,13 +19,13 @@ router.put('/publishers/:id',roles(['admin'],['student_officer']),wrap(async(req
  const student=await Student.findOneAndUpdate({_id:req.params.id,status:{$nin:['archived','graduated']}},{$set:{canPostFeed:req.body.allowed}},{new:true});if(!student)throw new AppError('Active student not found',404);
  await Audit.create({performedBy:req.user.userId,adminType:req.user.adminType,action:'UPDATE',targetType:'FEED',affectedStudent:student.id,description:`SRC posting permission ${req.body.allowed?'granted':'removed'}`});res.json({data:{_id:student.id,name:student.name,canPostFeed:student.canPostFeed}});
 }));
-router.get('/images/:filename',wrap(async(req,res)=>{if(!/^[a-f0-9]{32}\.webp$/.test(req.params.filename)||!await Post.exists({images:req.params.filename,deletedAt:null}))throw new AppError('Image not found',404);res.sendFile(path.join(folder(),req.params.filename))}));
+router.get('/images/:filename',wrap(async(req,res)=>{if(!/^(?:cld_)?[a-f0-9]{32}\.webp$/.test(req.params.filename)||!await Post.exists({images:req.params.filename,deletedAt:null}))throw new AppError('Image not found',404);res.set('Cache-Control','private, no-store').type('webp').send(await mediaStorage.read('feed',req.params.filename))}));
 async function decorate(posts,account){const ids=posts.map(p=>p._id);const [likes,comments,mine]=await Promise.all([Like.aggregate([{$match:{post:{$in:ids}}},{$group:{_id:'$post',count:{$sum:1}}}]),Comment.aggregate([{$match:{post:{$in:ids},deletedAt:null}},{$group:{_id:'$post',count:{$sum:1}}}]),Like.find({post:{$in:ids},account}).select('post')]);return posts.map(p=>({...p,likeCount:likes.find(l=>String(l._id)===String(p._id))?.count||0,commentCount:comments.find(l=>String(l._id)===String(p._id))?.count||0,liked:mine.some(l=>String(l.post)===String(p._id))}))}
 router.get('/',wrap(async(req,res)=>{const p=page(req),filter={deletedAt:null};const data=await Post.find(filter).sort({createdAt:-1,_id:-1}).skip((p-1)*20).limit(20).lean();await Receipt.updateMany({student:req.user.userId,announcement:{$in:data.map(p=>p.notification)}},{$set:{readAt:new Date()}});res.json({data:await decorate(data,req.user.userId),page:p,total:await Post.countDocuments(filter)})}));
 router.post('/',(req,res,next)=>canPost(req)?next():next(new AppError('Posting is reserved for admins and SRC students selected by the student officer',403)),require('express-rate-limit').rateLimit({windowMs:3600000,limit:10,keyGenerator:req=>req.user.userId,standardHeaders:true,legacyHeaders:false}),upload,wrap(async(req,res)=>{
  const body=String(req.body.body||'').trim();if(body.length>5000||!body&&!req.files?.length)throw new AppError('Write a post or add a picture (maximum 5000 characters)',400);
  const files=[];let saved=false;const session=await mongoose.startSession();let doc;
- try{await fs.mkdir(folder(),{recursive:true});for(const file of req.files||[]){const name=crypto.randomBytes(16).toString('hex')+'.webp';const image=sharp(file.buffer,{limitInputPixels:30000000});let metadata;try{metadata=await image.metadata();if(!['jpeg','png','webp'].includes(metadata.format)||metadata.pages>1)throw new Error();await image.rotate().resize({width:1600,height:1600,fit:'inside',withoutEnlargement:true}).webp({quality:85}).toFile(path.join(folder(),name))}catch{await fs.rm(path.join(folder(),name),{force:true});throw new AppError('Upload a valid, non-animated JPEG, PNG or WebP picture',400)}files.push(name)}
+ try{const useCloudinary=mediaStorage.validateCloudinary();for(const file of req.files||[]){const name=`${useCloudinary?'cld_':''}${crypto.randomBytes(16).toString('hex')}.webp`;const image=sharp(file.buffer,{limitInputPixels:30000000});let normalized;try{const metadata=await image.metadata();if(!['jpeg','png','webp'].includes(metadata.format)||metadata.pages>1)throw new Error();normalized=await image.rotate().resize({width:1600,height:1600,fit:'inside',withoutEnlargement:true}).webp({quality:85}).toBuffer()}catch{throw new AppError('Upload a valid, non-animated JPEG, PNG or WebP picture',400)}try{await mediaStorage.store(normalized,'feed',name)}catch{throw new AppError('Image storage is temporarily unavailable; please try again',503)}files.push(name)}
  await session.withTransaction(async()=>{
  // Recheck SRC permission at publication, after image processing.
  if(req.user.role==='student'&&!await Student.exists({_id:req.user.userId,canPostFeed:true,status:'active'}).session(session))throw new AppError('Your posting permission was removed',403);
@@ -36,7 +36,7 @@ router.post('/',(req,res,next)=>canPost(req)?next():next(new AppError('Posting i
  if(recipients.length)await Receipt.insertMany(recipients.map(r=>({announcement:notice.id,student:r.id,recipientRole:r.role})),{session});
  const versions=new Map(recipients.map(r=>[r.id,r.tokenVersion||0]));const subs=await Subscription.find({student:{$in:recipients.map(r=>r.id)},active:true}).session(session);const jobs=subs.filter(s=>versions.get(String(s.student))===s.tokenVersion).map(s=>({announcement:notice.id,subscription:s.id,student:s.student,recipientRole:s.recipientRole}));if(jobs.length)await Delivery.insertMany(jobs,{session});
  });saved=true;res.status(201).json({data:doc});
- }finally{await session.endSession();if(!saved)await Promise.all(files.map(name=>fs.rm(path.join(folder(),name),{force:true})))}
+ }finally{await session.endSession();if(!saved)await Promise.all(files.map(name=>mediaStorage.remove('feed',name).catch(()=>{})))}
 }));
 router.get('/:id',wrap(async(req,res)=>{const doc=await Post.findOne({_id:req.params.id,deletedAt:null}).lean();if(!doc)throw new AppError('Post unavailable',404);if(doc.notification)await Receipt.updateOne({announcement:doc.notification,student:req.user.userId},{$set:{readAt:new Date()}});res.json({data:(await decorate([doc],req.user.userId))[0]})}));
 router.delete('/:id',wrap(async(req,res)=>{

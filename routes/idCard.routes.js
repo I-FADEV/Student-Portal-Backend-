@@ -27,7 +27,7 @@ router.get('/verify/:token', wrap(async(req,res) => {
 router.get('/photo/:filename', protect, wrap(async(req,res) => {
  const card=await cards.findOne({photoURL:req.params.filename});
  if(!card || !(['idcard_admin','student_officer'].includes(req.user.adminType) || String(card.student)===req.user.userId)) return res.status(404).json({error:'Photo not found'});
- res.set('Cache-Control','private, no-store').sendFile(printing.photoPath(req.params.filename));
+ res.set('Cache-Control','private, no-store').type('jpeg').send(await printing.readPhoto(req.params.filename));
 }));
 router.post('/:id/approve', protect, roleCheck(['admin'],['idcard_admin']), wrap(async(req,res) => res.json({data:await printing.approve(req.params.id,req.user,req.ip)})));
 router.post('/:id/renew', protect, roleCheck(['admin'],['idcard_admin']), wrap(async(req,res) => res.json({data:await printing.renew(req.params.id,req.user,req.ip)})));
