@@ -324,6 +324,6 @@ module.exports = {
   deleteFacultyService,
   getDepartmentsService,
   createDepartmentService,
-  updateDepartmentService,
+  updateDepartmentService: require("./departmentUpdate.service"),
   deleteDepartmentService,
 };

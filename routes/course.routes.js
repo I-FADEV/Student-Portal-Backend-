@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+router.use((req,res,next) => { if(req.path !== '/view') return res.status(410).json({error:'Manage the course catalog through /timetable/courses'});next(); });
 const protect = require("../middleware/auth.middleware");
 const roleCheck = require("../middleware/roleCheck.middleware");
 const {

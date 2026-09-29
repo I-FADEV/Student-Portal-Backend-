@@ -77,35 +77,17 @@ const getAllFinanceTemplatesService = async () => {
 
 // ── GET active finance template for a student ─────────────────────────────────────
 const getActiveTemplateForStudent = async (student) => {
-  const filter = { isActive: true };
-
-  // Try department match first
-  let template = await FinanceTemplate.findOne({
-    ...filter,
-    target: "department",
-    department: { $regex: student.department, $options: "i" },
-    level: student.level,
-  });
-
-  // If no department match, try faculty match
-  if (!template && student.faculty) {
-    template = await FinanceTemplate.findOne({
-      ...filter,
-      target: "faculty",
-      faculty: { $regex: student.faculty, $options: "i" },
-      level: student.level,
-    });
+  const exact = require('../utils/studentCourseResolver').caseInsensitiveExact;
+  const common = {isActive:true,$or:[{level:student.level},{level:{$exists:false}},{level:null}]};
+  for(const scope of [
+    {target:'department',department:exact(student.department)},
+    ...(student.faculty?[{target:'faculty',faculty:exact(student.faculty)}]:[]),
+    {target:'all'}
+  ]) {
+    const template = await FinanceTemplate.findOne({...common,...scope}).sort({level:-1,createdAt:-1});
+    if(template)return template;
   }
-
-  // If no faculty match, try "all" target
-  if (!template) {
-    template = await FinanceTemplate.findOne({
-      ...filter,
-      target: "all",
-    });
-  }
-
-  return template;
+  return null;
 };
 
 // ── APPLY template to a student ───────────────────────────────────────────────────
@@ -145,12 +127,8 @@ const applyTemplateToStudent = async (student, template, session, semester) => {
     return { created: false, updated: itemsAdded > 0 };
   } else {
     // Create new finance record
-    const previousRecords = await Finance.find({
-      student: student._id,
-      session: { $ne: session },
-      outstandingBalance: { $gt: 0 },
-    });
-    const carriedOverBalance = previousRecords.reduce((s, r) => s + r.outstandingBalance, 0);
+    // Prior fees remain payable on their original records; never duplicate debt in a new term.
+    const carriedOverBalance = 0;
 
     const currency = template.items[0]?.currency || "NGN";
 
@@ -200,15 +178,12 @@ const applyTemplateToExistingStudents = async ({
     semester = semester || activeSession.semester;
   }
 
-  // Find matching students
-  const filter = {};
-  if (template.target === "department") {
-    filter.department = { $regex: template.department, $options: "i" };
-    if (template.level) filter.level = template.level;
-  } else if (template.target === "faculty") {
-    filter.faculty = { $regex: template.faculty, $options: "i" };
-    if (template.level) filter.level = template.level;
-  }
+  // Exact targets and optional level apply consistently to existing and future students.
+  const exact = require('../utils/studentCourseResolver').caseInsensitiveExact;
+  const filter = {status:{$ne:'archived'}};
+  if(template.target==='department')filter.department=exact(template.department);
+  if(template.target==='faculty')filter.faculty=exact(template.faculty);
+  if(template.level)filter.level=template.level;
 
   const students = await Student.find(filter).select("_id name matricNumber");
   if (!students.length) {
@@ -217,11 +192,14 @@ const applyTemplateToExistingStudents = async ({
 
   let created = 0;
   let updated = 0;
+  const errors = [];
 
   for (const student of students) {
-    const result = await applyTemplateToStudent(student, template, session, semester);
-    if (result.created) created++;
-    if (result.updated) updated++;
+    try {
+      const result = await applyTemplateToStudent(student, template, session, semester);
+      if (result.created) created++;
+      if (result.updated) updated++;
+    } catch(error) { errors.push({studentId:student.id,matricNumber:student.matricNumber,reason:error.message}); }
   }
 
   await logAction({
@@ -233,7 +211,7 @@ const applyTemplateToExistingStudents = async ({
     ipAddress,
   });
 
-  return { data: { created, updated, total: students.length } };
+  return { data: { created, updated, failed: errors.length, errors, total: students.length } };
 };
 
 // ── DELETE finance template ───────────────────────────────────────────────────────

@@ -8,13 +8,13 @@ const {
   getMatricStats,
 } = require("../controllers/matric.controller");
 
-// ── REGISTRY ADMIN ONLY ───────────────────────────────────────────────────────
+// ── ID CARD ADMIN ONLY ───────────────────────────────────────────────────────
 
 // GET /matric/counter?level= — get current counter for preview
 router.get(
   "/counter",
   protect,
-  roleCheck(["admin"], ["registry_admin"]),
+  roleCheck(["admin"], ["idcard_admin"]),
   getMatricCounter
 );
 
@@ -22,7 +22,7 @@ router.get(
 router.get(
   "/stats",
   protect,
-  roleCheck(["admin"], ["registry_admin"]),
+  roleCheck(["admin"], ["idcard_admin"]),
   getMatricStats
 );
 
@@ -30,7 +30,7 @@ router.get(
 router.post(
   "/generate",
   protect,
-  roleCheck(["admin"], ["registry_admin"]),
+  roleCheck(["admin"], ["idcard_admin"]),
   generateMatricNumber
 );
 

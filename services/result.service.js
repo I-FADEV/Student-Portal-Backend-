@@ -32,57 +32,21 @@ const getStudentResultsService = async ({ userId, session, semester }) => {
     courseCode: 1,
   });
 
-  const resultByCode = new Map();
-  for (const result of results) {
-    resultByCode.set(result.courseCode.toUpperCase(), result);
-  }
-
-  const merged = [];
-  const seenCodes = new Set();
-
+  const key = r => `${r.courseCode.toUpperCase()}|${r.session}|${r.semester}`;
+  const mergedMap = new Map(results.map(r => [key(r), r]));
   for (const course of enrolledCourses) {
-    const codeKey = course.courseCode.toUpperCase();
-    seenCodes.add(codeKey);
-
-    const existing = resultByCode.get(codeKey);
-    if (existing) {
-      merged.push(existing);
-      continue;
-    }
-
-    merged.push({
-      student: userId,
-      courseCode: course.courseCode,
-      courseName: course.courseName,
-      creditUnit: course.creditUnit,
-      test: null,
-      exam: null,
-      total: null,
-      grade: null,
-      session: session || course.session,
-      semester: semester || course.semester,
-      pending: true,
+    if (!mergedMap.has(key(course))) mergedMap.set(key(course), {
+      student: userId, courseCode: course.courseCode, courseName: course.courseName,
+      creditUnit: course.creditUnit, test: null, exam: null, total: null, grade: null,
+      session: course.session, semester: course.semester, pending: true,
     });
   }
-
-  // Include uploaded results that are not in the current course catalog
-  for (const result of results) {
-    if (!seenCodes.has(result.courseCode.toUpperCase())) {
-      merged.push(result);
-    }
-  }
-
-  merged.sort((a, b) => a.courseCode.localeCompare(b.courseCode));
-
-  const enrolledCodes = new Set(
-    enrolledCourses.map((c) => c.courseCode.toUpperCase()),
-  );
-  const withResults = results.filter((r) =>
-    enrolledCodes.has(r.courseCode.toUpperCase()),
-  ).length;
+  const merged = [...mergedMap.values()].sort((a,b) => b.session.localeCompare(a.session) || a.courseCode.localeCompare(b.courseCode));
+  const enrolledKeys = new Set(enrolledCourses.map(key));
+  const withResults = results.filter(r => enrolledKeys.has(key(r))).length;
 
   return {
-    data: merged,
+    data: merged.map(r=>({ _id:r._id,courseCode:r.courseCode,courseName:r.courseName,creditUnit:r.creditUnit,grade:r.grade,session:r.session,semester:r.semester,pending:Boolean(r.pending),outcome:r.outcome||'graded' })),
     summary: {
       totalCourses: enrolledCourses.length,
       withResults,
@@ -92,279 +56,47 @@ const getStudentResultsService = async ({ userId, session, semester }) => {
 };
 
 // ── TIMETABLE ADMIN: upload single result ─────────────────────────────────────
-const uploadSingleResultService = async ({
-  matricNumber,
-  courseCode,
-  courseName,
-  creditUnit,
-  test,
-  exam,
-  session,
-  semester,
-  performedBy,
-  ipAddress,
-}) => {
-  // Auto-fetch active session if not provided
-  if (!session || !semester) {
-    const activeSession = await getActiveSession();
-    session = session || activeSession.session;
-    semester = semester || activeSession.semester;
-  }
-
-  // ── Validation ────────────────────────────────────────────────────────────
-  if (test  < 0 || test  > 40) throw new Error(`Test score for ${matricNumber} must be between 0 and 40`);
-  if (exam  < 0 || exam  > 60) throw new Error(`Exam score for ${matricNumber} must be between 0 and 60`);
-
-  const student = await Student.findOne({ matricNumber });
-  if (!student) throw new Error(`Student with matric number ${matricNumber} not found`);
-
+const validScore = (value, maximum, label) => {
+  if (value === '' || value == null || typeof value === 'boolean' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > maximum) throw new AppError(`${label} must be a number from 0 to ${maximum}`, 400);
+  return Number(value);
+};
+const uploadSingleResultService = async (input) => {
+  let { matricNumber, courseCode, session, semester, performedBy, ipAddress } = input;
+  if (!session || !semester) { const active = await getActiveSession(); session ||= active.session; semester ||= active.semester; }
+  const test = validScore(input.test, 40, 'Test');
+  const exam = validScore(input.exam, 60, 'Exam');
+  if (!courseCode || !matricNumber) throw new AppError('Course code and matric number are required', 400);
+  courseCode = String(courseCode).trim().toUpperCase();
+  const student = await Student.findOne({ matricNumber: String(matricNumber).trim().toUpperCase(), status: { $ne: 'archived' } });
+  if (!student) throw new AppError('Student not found', 404);
+  const enrolled = await getTimetableCoursesForStudent(student, { session, semester });
+  const course = enrolled.find(c => c.courseCode.toUpperCase() === courseCode);
+  if (!course) throw new AppError('Student is not enrolled for this course and semester', 400);
+  if (!(course.creditUnit > 0)) throw new AppError('Set the course credit units before uploading results', 400);
+  const filter = { student: student.id, courseCode, session, semester };
+  const before = await Result.findOne(filter).lean();
+  if(before?.sourceSheet)throw new AppError('Use the academic score-sheet correction workflow for lecturer-submitted results',409);
   const total = test + exam;
-  const grade = calculateGrade(total);
-
-  const result = await Result.findOneAndUpdate(
-    {
-      student:  student._id,
-      courseCode: courseCode.toUpperCase(),
-      session,
-      semester,
-    },
-    { courseName, creditUnit, test, exam, total, grade },
-    { upsert: true, new: true },
-  );
-
-  await logAction({
-    performedBy,
-    action:          "CREATE",
-    targetType:      "RESULT",
-    targetId:        result._id,
-    affectedStudent: student._id,
-    description:     `Result uploaded for ${matricNumber} — ${courseCode.toUpperCase()} (${session} ${semester})`,
-    changes: {
-      before: null,
-      after:  { test, exam, total, grade },
-    },
-    ipAddress,
-  });
-
-  return { data: result };
+  const data = await Result.findOneAndUpdate(filter, { $set: { courseName: course.courseName, creditUnit: course.creditUnit, test, exam, total, grade: calculateGrade(total) } }, { upsert: true, new: true, runValidators: true });
+  await logAction({ performedBy, ipAddress, action: before ? 'UPDATE' : 'CREATE', targetType: 'RESULT', targetId: data.id, affectedStudent: student.id, description: `Result saved: ${courseCode}, ${session} ${semester}`, changes: { before, after: data.toObject() } });
+  return { data };
 };
-
-// ── TIMETABLE ADMIN: bulk upload results ──────────────────────────────────────
-const uploadBulkResultsService = async ({
-  results,
-  courseCode,
-  courseName,
-  creditUnit,
-  session,
-  semester,
-  performedBy,
-  ipAddress,
-}) => {
-  if (!Array.isArray(results) || results.length === 0) {
-    throw new Error("Results must be a non-empty array");
-  }
-
-  // Auto-fetch active session if not provided
-  if (!session || !semester) {
-    const activeSession = await getActiveSession();
-    session = session || activeSession.session;
-    semester = semester || activeSession.semester;
-  }
-
-  const processed = [];
-  const errors    = [];
-
-  for (const row of results) {
-    try {
-      const { matricNumber, test, exam } = row;
-
-      if (!matricNumber) {
-        errors.push({ row, reason: "Missing matric number" });
-        continue;
-      }
-
-      const testNum = Number(test);
-      const examNum = Number(exam);
-
-      if (isNaN(testNum) || isNaN(examNum)) {
-        errors.push({ matricNumber, reason: "Invalid score format" });
-        continue;
-      }
-      if (testNum < 0 || testNum > 40) {
-        errors.push({ matricNumber, reason: "Test score must be between 0 and 40" });
-        continue;
-      }
-      if (examNum < 0 || examNum > 60) {
-        errors.push({ matricNumber, reason: "Exam score must be between 0 and 60" });
-        continue;
-      }
-
-      const student = await Student.findOne({ matricNumber });
-      if (!student) {
-        errors.push({ matricNumber, reason: "Student not found" });
-        continue;
-      }
-
-      const total = testNum + examNum;
-      const grade = calculateGrade(total);
-
-      const saved = await Result.findOneAndUpdate(
-        {
-          student:  student._id,
-          courseCode: courseCode.toUpperCase(),
-          session,
-          semester,                   // ← FIX: was semester.toUpperCase() which corrupted "First"→"FIRST"
-        },
-        {
-          courseName: courseName,
-          creditUnit,
-          test:  testNum,
-          exam:  examNum,
-          total,
-          grade,
-        },
-        { upsert: true, new: true },
-      );
-
-      processed.push({ matricNumber, total, grade, id: saved._id });
-    } catch (err) {
-      errors.push({ row, reason: err.message });
-    }
-  }
-
-  await logAction({
-    performedBy,
-    action:      "CREATE",
-    targetType:  "RESULT",
-    targetId:    performedBy,
-    description: `Bulk result upload for ${courseCode.toUpperCase()} (${session} ${semester}) — ${processed.length} saved, ${errors.length} failed`,
-    changes: {
-      before: null,
-      after:  { saved: processed.length, failed: errors.length },
-    },
-    ipAddress,
-  });
-
-  return {
-    data: {
-      processed,
-      errors,
-      summary: {
-        total:  results.length,
-        saved:  processed.length,
-        failed: errors.length,
-      },
-    },
-  };
-};
-
-// ── TIMETABLE ADMIN: bulk upload results from JSON (manual entry) ───────────────
 const uploadBulkResultsJSONService = async ({ results, performedBy, ipAddress }) => {
-  if (!results || !Array.isArray(results) || results.length === 0) {
-    throw new AppError("Results array is required", 400);
-  }
-
-  const processed = [];
-  const errors = [];
-
-  // Get unique course codes to fetch course details
-  const courseCodes = [...new Set(results.map(r => r.courseCode))];
-
-  // Fetch course details from TimetableCourse
-  const courseDetailsMap = new Map();
-  if (courseCodes.length > 0) {
-    const courses = await TimetableCourse.find({
-      courseCode: { $in: courseCodes.map(c => c.toUpperCase()) },
-    });
-    for (const course of courses) {
-      courseDetailsMap.set(course.courseCode.toUpperCase(), course);
-    }
-  }
-
-  for (let i = 0; i < results.length; i++) {
-    const row = results[i];
-    const { matricNumber, courseCode, session, semester, studentName, test, exam, total, grade } = row;
-
+  if (!Array.isArray(results) || !results.length || results.length > 2000) throw new AppError('Upload 1 to 2000 result rows at a time', 400);
+  const processed = [], errors = [], seen = new Set();
+  for (const [index, row] of results.entries()) {
     try {
-      if (!matricNumber) {
-        throw new Error("Matric number is required");
-      }
-
-      const student = await Student.findOne({ matricNumber });
-      if (!student) {
-        throw new Error(`Student with matric number "${matricNumber}" not found`);
-      }
-
-      const existing = await Result.findOne({
-        student: student._id,
-        courseCode: courseCode.toUpperCase(),
-        session,
-        semester,
-      });
-
-      // Get course details from TimetableCourse
-      const courseDetails = courseDetailsMap.get(courseCode.toUpperCase());
-      const finalCourseName = courseDetails?.courseName || courseCode;
-      const finalCreditUnit = courseDetails?.creditUnit || 0;
-
-      const totalScore = total || (Number(test) + Number(exam));
-      const finalGrade = grade || calculateGrade(totalScore);
-
-      const saved = await Result.findOneAndUpdate(
-        {
-          student: student._id,
-          courseCode: courseCode.toUpperCase(),
-          session,
-          semester,
-        },
-        {
-          student: student._id,
-          courseCode: courseCode.toUpperCase(),
-          courseName: finalCourseName,
-          creditUnit: finalCreditUnit,
-          test: Number(test) || 0,
-          exam: Number(exam) || 0,
-          total: totalScore,
-          grade: finalGrade,
-          session,
-          semester,
-        },
-        { upsert: true, new: true },
-      );
-
-      processed.push({ matricNumber, total: totalScore, grade: finalGrade, id: saved._id });
-    } catch (err) {
-      errors.push({ row: i + 1, reason: err.message });
-    }
+      const key = `${String(row.matricNumber).trim().toUpperCase()}|${String(row.courseCode).trim().toUpperCase()}|${row.session}|${row.semester}`;
+      if (seen.has(key)) throw new AppError('Duplicate result row in this upload', 400);
+      seen.add(key);
+      const { data } = await uploadSingleResultService({ ...row, performedBy, ipAddress });
+      processed.push({ matricNumber: row.matricNumber, total: data.total, grade: data.grade, id: data.id });
+    } catch (error) { errors.push({ row: index + 1, matricNumber: row.matricNumber, reason: error.message }); }
   }
-
-  await logAction({
-    performedBy,
-    action: "CREATE",
-    targetType: "RESULT",
-    targetId: performedBy,
-    description: `Bulk result upload (JSON) — ${processed.length} saved, ${errors.length} failed`,
-    changes: {
-      before: null,
-      after: { saved: processed.length, failed: errors.length },
-    },
-    ipAddress,
-  });
-
-  return {
-    data: {
-      processed,
-      errors,
-      summary: {
-        total: results.length,
-        saved: processed.length,
-        failed: errors.length,
-      },
-    },
-  };
+  return { data: { processed, errors, summary: { total: results.length, saved: processed.length, failed: errors.length } } };
 };
+const uploadBulkResultsService = ({ results, courseCode, session, semester, performedBy, ipAddress }) => uploadBulkResultsJSONService({ results: results.map(row => ({ ...row, courseCode, session, semester })), performedBy, ipAddress });
 
-// ── TIMETABLE ADMIN: get students for manual result entry (based on course targets) ─
 const getStudentsForCourseService = async ({ courseCode, session, semester }) => {
   if (!courseCode || !session || !semester) {
     throw new AppError("courseCode, session, and semester are required", 400);
@@ -389,9 +121,13 @@ const getStudentsForCourseService = async ({ courseCode, session, semester }) =>
   }
 
   // Find students matching any of the target queries
-  const students = await Student.find({
-    $or: studentQueries,
-  }).select("_id name matricNumber department level");
+  const Enrollment = require('../models/enrollment.model');
+  const snapshots = await Enrollment.find({session,semester});
+  const enrolled = await Enrollment.find({session,semester,$or:studentQueries});
+  const students = await Student.find({status:{$ne:'archived'},$or:[
+    {_id:{$in:enrolled.map(e=>e.student)}},
+    {_id:{$nin:snapshots.map(e=>e.student)},$or:studentQueries}
+  ]}).select("_id name matricNumber department level");
 
   if (!students.length) {
     throw new AppError("No students found for this course. Check course targets are set correctly.", 404);
@@ -422,9 +158,9 @@ const getStudentsForCourseService = async ({ courseCode, session, semester }) =>
       matricNumber: student.matricNumber,
       department: student.department,
       level: student.level,
-      test: result?.test || 0,
-      exam: result?.exam || 0,
-      total: result?.total || 0,
+      test: result?.test ?? null,
+      exam: result?.exam ?? null,
+      total: result?.total ?? null,
       grade: result?.grade || null,
       resultId: result?._id || null,
     };
@@ -497,17 +233,18 @@ const updateResultService = async ({
 }) => {
   const result = await Result.findById(resultId);
   if (!result) throw new Error("Result not found");
+  if(result.sourceSheet)throw new AppError("Use the academic score-sheet correction workflow for lecturer-submitted results",409);
 
   const before = { test: result.test, exam: result.exam, total: result.total, grade: result.grade };
 
   if (test !== undefined && test !== null) {
     const t = Number(test);
-    if (isNaN(t) || t < 0 || t > 40) throw new Error("Test score must be between 0 and 40");
+    if (test === '' || !Number.isFinite(t) || t < 0 || t > 40) throw new AppError("Test score must be between 0 and 40",400);
     result.test = t;
   }
   if (exam !== undefined && exam !== null) {
     const e = Number(exam);
-    if (isNaN(e) || e < 0 || e > 60) throw new Error("Exam score must be between 0 and 60");
+    if (exam === '' || !Number.isFinite(e) || e < 0 || e > 60) throw new AppError("Exam score must be between 0 and 60",400);
     result.exam = e;
   }
 
@@ -535,9 +272,11 @@ const updateResultService = async ({
 
 // ── TIMETABLE ADMIN: delete a result ─────────────────────────────────────────
 const deleteResultService = async ({ resultId, performedBy, ipAddress }) => {
-  const result = await Result.findByIdAndDelete(resultId);
+  const result = await Result.findById(resultId);
   if (!result) throw new Error("Result not found");
+  if(result.sourceSheet)throw new AppError("Use the academic score-sheet correction workflow for lecturer-submitted results",409);
 
+  await result.deleteOne();
   await logAction({
     performedBy,
     action:          "DELETE",
@@ -566,6 +305,7 @@ const fixExistingResultsService = async ({ performedBy, ipAddress }) => {
     try {
       const courseDetails = await TimetableCourse.findOne({
         courseCode: result.courseCode.toUpperCase(),
+        session: result.session, semester: result.semester,
       });
 
       if (courseDetails) {

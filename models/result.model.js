@@ -22,13 +22,11 @@ const resultSchema = new mongoose.Schema(
     },
     test: {
       type: Number,
-      required: true,
       min: 0,
       max: 40,
     },
     exam: {
       type: Number,
-      required: true,
       min: 0,
       max: 60,
     },
@@ -38,6 +36,8 @@ const resultSchema = new mongoose.Schema(
     grade: {
       type: String,
     },
+    sourceSheet: {type: mongoose.Schema.Types.ObjectId, ref:'ScoreSheet', default:null},
+    outcome: {type:String,enum:['graded','absent'],default:'graded'},
     session: {
       type: String,
       required: true, // e.g. "2024/2025"
@@ -45,10 +45,12 @@ const resultSchema = new mongoose.Schema(
     semester: {
       type: String,
       required: true,
-      enum: ["First", "Second"],
+      enum: ["First", "Second", "Summer"],
     },
   },
   { timestamps: true },
 );
+
+resultSchema.index({ student: 1, courseCode: 1, session: 1, semester: 1 }, { unique: true });
 
 module.exports = mongoose.model("Result", resultSchema);

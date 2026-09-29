@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const idCardSchema = new mongoose.Schema(
   {
+    verificationToken: { type: String, unique: true, sparse: true },
+    approvedAt: Date, approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    expiresAt: Date, printCount: { type: Number, default: 0 }, lastPrintedAt: Date,
+    previousCards: [{ photoURL: String, session: String, approvedAt: Date, expiresAt: Date, collectedAt: Date }],
     student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Student",
@@ -19,7 +23,7 @@ const idCardSchema = new mongoose.Schema(
     // unsubmitted ← rejected (TAC rejects, student can resubmit)
     status: {
       type: String,
-      enum: ["unsubmitted", "pending", "collected", "rejected"],
+      enum: ["unsubmitted", "pending", "approved", "collected", "rejected"],
       default: "unsubmitted",
     },
 

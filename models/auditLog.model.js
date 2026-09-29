@@ -12,7 +12,7 @@ const auditLogSchema = new mongoose.Schema(
     // ── ADDED: Admin type (general_admin, registry_admin, etc.) ────────────────
     adminType: {
       type: String,
-      enum: ["general_admin", "registry_admin", "finance_admin", "idcard_admin", "timetable_admin"],
+      enum: ["general_admin", "registry_admin", "finance_admin", "idcard_admin", "timetable_admin", "student_officer"],
       default: null,
     },
 
@@ -44,6 +44,10 @@ const auditLogSchema = new mongoose.Schema(
         "DEPARTMENT",
         "MATRIC",
         "STUDENT",
+        "SESSION",
+        "FINANCE_TEMPLATE",
+        "ANNOUNCEMENT",
+        "STAFF", "HEADCOUNT", "ASSESSMENT", "ATTENDANCE", "SCORE_SHEET", "FEED",
       ],
     },
 

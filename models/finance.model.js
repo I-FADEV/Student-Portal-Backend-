@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 const financeSchema = new mongoose.Schema(
   {
+    totalsByCurrency: { type: mongoose.Schema.Types.Mixed, default: {} },
+    carriedOverPaid: { type: Number, default: 0, min: 0 },
     student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Student",
@@ -29,6 +31,7 @@ const financeSchema = new mongoose.Schema(
     //Each payment component
     items: [
       {
+        feeCode: { type: String, default: null },
         label: {
           type: String,
           required: true, // e.g. "Tuition", "ID Card", "Library Fee"
@@ -62,7 +65,7 @@ const financeSchema = new mongoose.Schema(
 
     totalAmount: {
       type: Number,
-      required: true,
+      required: false,
       min: 0,
     },
 
@@ -88,7 +91,7 @@ const financeSchema = new mongoose.Schema(
       default: "Unpaid",
     },
   },
-  { timestamps: true },
+  { timestamps: true, optimisticConcurrency: true },
 );
 
 // Drop old index and create new one with semester to prevent duplicates per student/session/semester

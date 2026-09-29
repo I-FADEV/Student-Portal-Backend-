@@ -8,8 +8,8 @@ const adminRegisterSchema = joi.object({
     "string.max": "Name cannot exceed 50 characters",
     "any.required": "Name is required",
   }),
-  password: joi.string().min(6).required().messages({
-    "string.min": "Password must be at least 6 characters",
+  password: joi.string().min(8).required().messages({
+    "string.min": "Password must be at least 8 characters",
     "any.required": "Password is required",
   }),
   confirmPassword: joi
@@ -22,7 +22,7 @@ const adminRegisterSchema = joi.object({
     }),
   adminType: joi
     .string()
-    .valid("general_admin", "finance_admin", "idcard_admin", "timetable_admin","registry_admin")
+    .valid("general_admin", "finance_admin", "idcard_admin", "timetable_admin","registry_admin", "student_officer")
     .required()
     .messages({
       "any.only":
@@ -54,8 +54,8 @@ const studentRegisterSchema = joi.object({
     "any.required": "Matric number must follow the format: I-FAT/26/CSC/0187 (or I-FAT/26/CSC/0187TF for transfer students)",
   }),
 
-  password: joi.string().min(6).required().messages({
-    "string.min": "Password must be at least 6 characters",
+  password: joi.string().min(8).required().messages({
+    "string.min": "Password must be at least 8 characters",
     "any.required": "Password is required",
   }),
 

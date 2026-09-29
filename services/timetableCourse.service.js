@@ -71,6 +71,7 @@ const updateTimetableCourseService = async (id, updates) => {
 
 // ── DELETE ────────────────────────────────────────────────────────────────────
 const deleteTimetableCourseService = async (id) => {
+  if(await require('../models/assessment.model').exists({course:id}))throw new AppError('This course has assessment history and cannot be deleted',409);
   const course = await TimetableCourse.findByIdAndDelete(id);
   if (!course) throw new AppError("Course not found", 404);
   return { data: course };
@@ -106,6 +107,11 @@ const getTimetableStatsService = async () => {
   };
 };
 
+async function countClashes() {
+ const rows = await require('../models/timetable.model').find().lean(); const { conflict } = require('./scheduling.service');
+ let count=0; for(let i=0;i<rows.length;i++) for(let j=i+1;j<rows.length;j++) if(conflict(rows[i],rows[j])) count++;
+ return count;
+}
 module.exports = {
   createTimetableCourseService,
   getTimetableCoursesService,

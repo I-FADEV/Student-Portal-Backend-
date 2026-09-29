@@ -30,12 +30,8 @@ const createFinanceService = async ({ session, semester, items, studentId, perfo
   const existing = await Finance.findOne({ student: studentId, session, semester });
   if (existing) throw new AppError("Finance Record already exists", 409);
 
-  const previousRecords = await Finance.find({
-    student: studentId,
-    session: { $ne: session },
-    outstandingBalance: { $gt: 0 },
-  });
-  const carriedOverBalance = previousRecords.reduce((sum, r) => sum + r.outstandingBalance, 0);
+  // Prior fees remain payable on their original records; never duplicate debt in a new term.
+    const carriedOverBalance = 0;
 
   // Derive currency from first item for backward compatibility
   const currency = items[0]?.currency || "NGN";
@@ -58,63 +54,8 @@ const createFinanceService = async ({ session, semester, items, studentId, perfo
 };
 
 // ── PAY finance + sync ID card status ────────────────────────────────────────
-const payFinanceAndSyncIdCardService = async ({ financeId, payments, performedBy, ipAddress }) => {
-  const mongoSession = await mongoose.startSession();
-  try {
-    mongoSession.startTransaction();
+const payFinanceAndSyncIdCardService = require('./payment.service').record;
 
-    const finance = await Finance.findById(financeId).session(mongoSession);
-    if (!finance) throw new AppError("Finance not found", 404);
-
-    const before = { totalPaid: finance.totalPaid, outstandingBalance: finance.outstandingBalance };
-
-    for (const payment of payments) {
-      const item = finance.items.find((i) => i.label === payment.itemLabel);
-      if (!item) throw new AppError(`Item "${payment.itemLabel}" not found`, 404);
-      if (item.paidAmount + payment.amountPaid > item.amount) {
-        throw new AppError(`Payment for "${payment.itemLabel}" exceeds required amount`, 400);
-      }
-      item.paidAmount += payment.amountPaid;
-    }
-
-    recalculateFinance(finance);
-    finance.markModified("items");
-    await finance.save({ session: mongoSession });
-
-    // Auto-sync ID card fee status
-    const idCardItem = finance.items.find((i) => i.label.toLowerCase() === "id card");
-    if (idCardItem) {
-      await IdCard.findOneAndUpdate(
-        { student: finance.student },
-        { feePaid: idCardItem.status === "Paid", feePaidAt: idCardItem.status === "Paid" ? new Date() : null },
-        { session: mongoSession, new: true },
-      );
-    }
-
-    await mongoSession.commitTransaction();
-    mongoSession.endSession();
-
-    await logAction({
-      performedBy,
-      action: "UPDATE",
-      targetType: "FINANCE",
-      targetId: finance._id,
-      affectedStudent: finance.student,
-      description: `Payment recorded — balance now ${finance.currency}${finance.outstandingBalance}`,
-      changes: { before, after: { totalPaid: finance.totalPaid, outstandingBalance: finance.outstandingBalance } },
-      ipAddress,
-    });
-
-    return { finance };
-  } catch (err) {
-    await mongoSession.abortTransaction();
-    throw err;
-  } finally {
-    mongoSession.endSession();
-  }
-};
-
-// ── VIEW student's own finance records ────────────────────────────────────────
 const viewStudentFinance = async ({ session, semester, studentId }) => {
   const query = { student: studentId };
   if (session)  query.session  = session;
@@ -150,46 +91,17 @@ const getFinanceStatsService = async () => {
     Finance.find(),
   ]);
 
-  const totalFeesCreated = allRecords.reduce((s, r) => s + (r.totalAmount        || 0), 0);
-  const totalCollected   = allRecords.reduce((s, r) => s + (r.totalPaid          || 0), 0);
-  const totalOutstanding = allRecords.reduce((s, r) => s + (r.outstandingBalance || 0), 0);
-
-  // Currency breakdown
-  const totalFeesCreatedNGN = allRecords.reduce((sum, rec) => {
-    return sum + rec.items.filter(i => i.currency === 'NGN').reduce((s, i) => s + i.amount, 0);
-  }, 0);
-  const totalFeesCreatedXAF = allRecords.reduce((sum, rec) => {
-    return sum + rec.items.filter(i => i.currency === 'XAF').reduce((s, i) => s + i.amount, 0);
-  }, 0);
-
-  const totalCollectedNGN = allRecords.reduce((sum, rec) => {
-    return sum + rec.items.filter(i => i.currency === 'NGN').reduce((s, i) => s + (i.paidAmount || 0), 0);
-  }, 0);
-  const totalCollectedXAF = allRecords.reduce((sum, rec) => {
-    return sum + rec.items.filter(i => i.currency === 'XAF').reduce((s, i) => s + (i.paidAmount || 0), 0);
-  }, 0);
-
-  const totalOutstandingNGN = allRecords.reduce((sum, rec) => {
-    return sum + rec.items.filter(i => i.currency === 'NGN').reduce((s, i) => s + (i.amount - (i.paidAmount || 0)), 0);
-  }, 0);
-  const totalOutstandingXAF = allRecords.reduce((sum, rec) => {
-    return sum + rec.items.filter(i => i.currency === 'XAF').reduce((s, i) => s + (i.amount - (i.paidAmount || 0)), 0);
-  }, 0);
-
-  return { 
-    data: { 
-      totalStudents, 
-      totalFeesCreated, 
-      totalCollected, 
-      totalOutstanding,
-      totalFeesCreatedNGN,
-      totalFeesCreatedXAF,
-      totalCollectedNGN,
-      totalCollectedXAF,
-      totalOutstandingNGN,
-      totalOutstandingXAF,
-    } 
-  };
+  const totals = { NGN:{totalAmount:0,totalPaid:0,outstandingBalance:0}, XAF:{totalAmount:0,totalPaid:0,outstandingBalance:0} };
+  for (const record of allRecords) {
+    recalculateFinance(record);
+    for (const [currency,values] of Object.entries(record.totalsByCurrency)) {
+      for (const key of Object.keys(values)) totals[currency][key] = Math.round((totals[currency][key]+values[key])*100)/100;
+    }
+  }
+  return {data:{totalStudents,totalsByCurrency:totals,
+    totalFeesCreatedNGN:totals.NGN.totalAmount,totalFeesCreatedXAF:totals.XAF.totalAmount,
+    totalCollectedNGN:totals.NGN.totalPaid,totalCollectedXAF:totals.XAF.totalPaid,
+    totalOutstandingNGN:totals.NGN.outstandingBalance,totalOutstandingXAF:totals.XAF.outstandingBalance}};
 };
 
 // ── BULK finance creation ──────────────────────────────────────────────────────

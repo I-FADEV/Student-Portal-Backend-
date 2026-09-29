@@ -6,7 +6,11 @@ const Register = require("../models/register.model");
 // ─── ADMIN SERVICES ───────────────────────────────────────────────
 
 const deleteAdminService = async ({ adminId, performedBy, ipAddress }) => {
-  const admin = await Admin.findByIdAndDelete(adminId);
+  const AppError = require("../utils/appError");
+  const admin = await Admin.findById(adminId);
+  if (String(adminId) === String(performedBy)) throw new AppError("You cannot delete your own account", 400);
+  if (admin?.adminType === "general_admin") throw new AppError("General administrator accounts cannot be deleted here", 400);
+  if (admin) await admin.deleteOne();
   if (!admin) throw new Error("Admin not found");
 
   await logAction({
@@ -48,7 +52,7 @@ const checkLogsService = async ({ page, limit, skip }) => {
 };
 
 const getAllAdminsService = async () => {
-  const admins = await Admin.find();
+  const admins = await Admin.find().select("-password");
   if (!admins) throw new Error("Admins not found");
 
   return { data: admins };

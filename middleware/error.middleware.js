@@ -1,20 +1,9 @@
-const errorHandler = (err, req, res, next) => {
-  console.error(err); // basic logging
-
-  const statusCode = err.status || 500;
-  const isDev = process.env.NODE_ENV === "development";
-
-  return res.status(statusCode).json({
-    // In production, 500 errors show a generic message
-    // Your own thrown errors (400, 401, 404) still show their message
-    error:
-      statusCode === 500 && !isDev
-        ? "Something went wrong. Please try again."
-        : err.message || "Internal Server Error",
-
-    // Stack trace only in development
-    stack: isDev ? err.stack : undefined,
-  });
+module.exports = (err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  let status = err.status || err.statusCode || 500;
+  if (['ValidationError', 'CastError', 'MulterError'].includes(err.name)) status = 400;
+  if (err.code === 11000 || err.name === 'VersionError') status = 409;
+  if (status >= 500) console.error(err);
+  const message = err.code === 11000 ? 'This record already exists. Refresh and try again.' : err.message;
+  res.status(status).json({ error: status >= 500 && process.env.NODE_ENV !== 'development' ? 'Something went wrong. Please try again.' : message });
 };
-
-module.exports = errorHandler;

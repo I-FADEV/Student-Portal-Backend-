@@ -16,6 +16,7 @@ const timetableCourseSchema = new mongoose.Schema(
     creditUnit:    { type: Number, default: null },
     lecturer:      { type: String, required: true, trim: true },
     lecturerPhone: { type: String, default: null },
+    lecturerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff', default: null },
 
     // Who takes this course — can be multiple dept+level or faculty+level combos
     targets: {
@@ -27,7 +28,7 @@ const timetableCourseSchema = new mongoose.Schema(
     },
 
     session:  { type: String, required: true }, // e.g. "2025/2026"
-    semester: { type: String, enum: ["First", "Second"], required: true },
+    semester: { type: String, enum: ["First", "Second", "Summer"], required: true },
   },
   { timestamps: true }
 );

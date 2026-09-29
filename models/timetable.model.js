@@ -58,7 +58,7 @@ const timetableSchema = new mongoose.Schema(
     semester: {
       type: String,
       required: true,
-      enum: ["First", "Second"],
+      enum: ["First", "Second", "Summer"],
     },
   },
   { timestamps: true },

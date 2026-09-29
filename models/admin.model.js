@@ -4,7 +4,9 @@ const bcrypt = require("bcryptjs");
 const adminSchema = new mongoose.Schema(
   {
     username: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    password: { type: String, required: true, select: false },
+    tokenVersion: { type: Number, default: 0 },
+    status: { type: String, enum: ["active", "graduated", "archived"], default: "active" },
     role: { type: String, default: "admin" },
     adminType: {
       type: String,
@@ -14,6 +16,7 @@ const adminSchema = new mongoose.Schema(
         "idcard_admin",
         "timetable_admin",
         "registry_admin",
+        "student_officer",
       ],
       required: true,
     },
@@ -25,6 +28,7 @@ const adminSchema = new mongoose.Schema(
 adminSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
+  if (!this.isNew) this.tokenVersion = (this.tokenVersion || 0) + 1;
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 

@@ -20,12 +20,13 @@ const viewIdCard = async (req, res, next) => {
 
 // ── STUDENT: submit ID card form ──────────────────────────────────────────────
 const createIdcard = async (req, res, next) => {
+  let storedPhoto;
   try {
     if (!req.file) {
       return res.status(400).json({ error: "Passport photo is required." });
     }
 
-    const photoURL = req.file.filename;
+    const photoURL = storedPhoto = await require("../services/cardPrinting.service").storePhoto(req.file.buffer);
 
     const {
       fullName,
@@ -55,6 +56,7 @@ const createIdcard = async (req, res, next) => {
 
     res.status(201).json({ data });
   } catch (error) {
+    if (storedPhoto) await require("../services/cardPrinting.service").removePhoto(storedPhoto);
     next(error);
   }
 };

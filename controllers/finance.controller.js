@@ -31,16 +31,17 @@ const createFinance = async (req, res, next) => {
 // ── PAY on a finance record ────────────────────────────────────────────────────
 const payFinance = async (req, res, next) => {
   try {
-    const { payments } = req.body;
+    const { payments, reference } = req.body;
 
-    const { finance } = await payFinanceAndSyncIdCardService({
+    const { finance, receipt } = await payFinanceAndSyncIdCardService({
+      reference,
       payments,
       financeId:   req.params.id,
       performedBy: req.user.userId,
       ipAddress:   req.ip,
     });
 
-    res.status(200).json({ data: finance });
+    res.status(200).json({ data: finance, receipt });
   } catch (error) {
     next(error);
   }

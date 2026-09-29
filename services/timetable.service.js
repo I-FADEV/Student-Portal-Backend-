@@ -81,6 +81,7 @@ const hasSlotConflict = async ({
 };
 
 const getStudentTimetableService = async ({ userId, session, semester }) => {
+  if (!session || !semester) { const active = await getActiveSession(); session ||= active.session; semester ||= active.semester; }
   const student = await Student.findById(userId);
   if (!student) throw new AppError("Student not found", 404);
 
@@ -789,11 +790,9 @@ const generateTimetableService = async ({
 };
 
 module.exports = {
-  getStudentTimetableService,
-  createTimetableEntryService,
-  createBulkTimetableService,
-  getAllTimetableService,
-  deleteTimetableEntryService,
-  updateTimetableEntryService,
-  generateTimetableService,
+ getStudentTimetableService, getAllTimetableService, deleteTimetableEntryService,
+ createTimetableEntryService: async input => { const r=await require('./scheduling.service').persist({entries:[input],performedBy:input.performedBy,ipAddress:input.ipAddress});return {data:r.data.saved[0]}; },
+ createBulkTimetableService: require('./scheduling.service').persist,
+ updateTimetableEntryService: require('./scheduling.service').update,
+ generateTimetableService: require('./scheduling.service').plan,
 };

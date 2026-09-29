@@ -76,7 +76,7 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
   // creditUnit, lecturer, lecturerPhone, courseName)
   const courseDetailsMap = new Map();
   for (const course of timetableCourses) {
-    courseDetailsMap.set(course.courseCode.toUpperCase(), course);
+    courseDetailsMap.set(`${course.courseCode.toUpperCase()}|${course.session}|${course.semester}`, course);
   }
 
   const courseMap = new Map();
@@ -98,14 +98,14 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
       .sort({ day: 1, time: 1 });
 
     for (const entry of timetableEntries) {
-      const codeKey = entry.courseCode.toUpperCase();
+      const codeKey = `${entry.courseCode.toUpperCase()}|${entry.session}|${entry.semester}`;
       if (courseMap.has(codeKey)) continue; // already picked one entry
 
       const courseDetails = courseDetailsMap.get(codeKey);
 
       // For faculty courses, always stamp the student's own department —
       // never the entry's raw department (which could be Biochemistry etc.)
-      const isFacultyCourse = facultyCourseCodes.has(codeKey);
+      const isFacultyCourse = facultyCourseCodes.has(entry.courseCode.toUpperCase());
       const department = isFacultyCourse
         ? student.department
         : entry.department;
@@ -126,7 +126,7 @@ const getStudentCoursesService = async ({ userId, session, semester }) => {
 
   // ── Unscheduled courses (in catalog but not yet on timetable) ──────────────
   for (const course of timetableCourses) {
-    const codeKey = course.courseCode.toUpperCase();
+    const codeKey = `${course.courseCode.toUpperCase()}|${course.session}|${course.semester}`;
     if (courseMap.has(codeKey)) continue;
 
     courseMap.set(codeKey, {

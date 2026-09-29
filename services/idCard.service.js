@@ -7,8 +7,11 @@ const { getActiveSession } = require("../utils/activeSession");
 const viewStudentIdCardService = async ({ studentId }) => {
   let idCard = await IdCard.findOne({ student: studentId });
 
-  if (!idCard) {
-    idCard = await IdCard.create({ student: studentId });
+  if (!idCard) idCard = await IdCard.findOneAndUpdate({ student: studentId }, { $setOnInsert: { student: studentId } }, { upsert: true, new: true, setDefaultsOnInsert: true });
+  if (!idCard.feePaid) {
+    const records = await require('../models/finance.model').find({ student: studentId });
+    const paid = records.some(r => r.items.some(i => (i.feeCode === 'ID_CARD' || /^id[ -]?card$/i.test(i.label.trim())) && i.amount > 0 && i.paidAmount >= i.amount));
+    if (paid) { idCard.feePaid = true; idCard.feePaidAt = new Date(); await idCard.save(); }
   }
 
   return { data: idCard };
@@ -29,11 +32,11 @@ const submitIdCardService = async ({
   session,
 }) => {
   // Auto-fetch active session if not provided
-  if (!session) {
-    const activeSession = await getActiveSession();
-    session = activeSession.session;
-  }
+  session = (await getActiveSession()).session;
 
+  const student = await Student.findById(studentId);
+  if (!student) throw new Error("Student not found");
+  matricNumber = student.matricNumber; department = student.department; level = student.level; fullName = student.name;
   const idCard = await IdCard.findOne({ student: studentId });
 
   if (!idCard)
@@ -45,7 +48,7 @@ const submitIdCardService = async ({
     );
   }
 
-  if (idCard.status === "pending" || idCard.status === "collected") {
+  if (["pending", "approved", "collected"].includes(idCard.status)) {
     throw new Error(
       "You have already submitted your ID card request and it cannot be changed at this time.",
     );
@@ -115,7 +118,7 @@ const markCollectedService = async ({ idCardId, performedBy, ipAddress }) => {
   const idCard = await IdCard.findById(idCardId);
   if (!idCard) throw new Error("ID card record not found.");
 
-  if (idCard.status !== "pending") {
+  if (idCard.status !== "approved") {
     throw new Error(
       `Cannot mark as collected — current status is "${idCard.status}".`,
     );
@@ -130,7 +133,7 @@ const markCollectedService = async ({ idCardId, performedBy, ipAddress }) => {
     action:          "UPDATE",
     targetType:      "IDCARD",
     targetId:        idCardId,
-    affectedStudent: idCard.studentId,
+    affectedStudent: idCard.student,
     description:     "ID card marked as collected",
     changes: {
       before: { status: "pending"   },

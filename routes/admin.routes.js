@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+router.use((req,res,next) => {
+ if(req.path.startsWith('/faculty') || req.path.includes('/departments')) return res.status(410).json({error:'Use /registry/faculties and /registry/departments'});
+ next();
+});
 const protect = require("../middleware/auth.middleware");
 const roleCheck = require("../middleware/roleCheck.middleware");
 const {

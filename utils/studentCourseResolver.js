@@ -4,7 +4,7 @@ const TimetableCourse = require("../models/timetableCourse.model");
 
 /** Case-insensitive exact string match for MongoDB queries */
 const caseInsensitiveExact = (value) => ({
-  $regex: new RegExp(`^${String(value).trim()}$`, "i"),
+  $regex: new RegExp(`^${String(value).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
 });
 
 /**
@@ -87,7 +87,16 @@ const buildStudentCourseTargetQuery = (student, facultyName) => {
  * Find all TimetableCourse records a student should take
  * (their department courses + faculty-wide courses).
  */
-const getTimetableCoursesForStudent = async (student, { session, semester }) => {
+const getTimetableCoursesForStudent = async (student, { session, semester }, resolveHistory = true) => {
+  if (resolveHistory) {
+    await require("../services/studentManagement.service").snapshot(student);
+    const query = { student: student._id }; if(session) query.session=session; if(semester) query.semester=semester;
+    const enrollments = await require("../models/enrollment.model").find(query);
+    if(enrollments.length) {
+      const courses = await Promise.all(enrollments.map(e => getTimetableCoursesForStudent({ ...student.toObject(), department:e.department, faculty:e.faculty, level:e.level }, {session:e.session,semester:e.semester}, false)));
+      return courses.flat();
+    }
+  }
   const { department, level } = student;
   let { faculty } = student;
 

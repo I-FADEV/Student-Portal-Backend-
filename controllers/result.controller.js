@@ -73,7 +73,7 @@ const uploadBulkResults = async (req, res, next) => {
     }
 
     filePath = req.file.path;
-    const parsedResults = parseExcel(filePath);
+    const parsedResults = await parseExcel(filePath);
 
     if (!parsedResults.length) {
       return res.status(400).json({ message: "Excel file is empty or invalid" });
@@ -81,10 +81,10 @@ const uploadBulkResults = async (req, res, next) => {
 
     const { courseCode, courseName, creditUnit, session, semester } = req.body;
 
-    if (!courseCode || !courseName || !creditUnit || !session || !semester) {
+    if (!courseCode || !session || !semester) {
       return res.status(400).json({
         message:
-          "Missing required fields: courseCode, courseName, creditUnit, session, semester",
+          "Missing required fields: courseCode, session, semester",
       });
     }
 
@@ -99,7 +99,7 @@ const uploadBulkResults = async (req, res, next) => {
       ipAddress:   req.ip,
     });
 
-    return res.status(200).json({ data: response });
+    return res.status(200).json(response);
   } catch (err) {
     return res.status(500).json({
       message: err.message || "Something went wrong during upload",
@@ -122,7 +122,7 @@ const uploadBulkResultsJSON = async (req, res, next) => {
       ipAddress: req.ip,
     });
 
-    return res.status(200).json({ data: response });
+    return res.status(200).json(response);
   } catch (err) {
     return res.status(500).json({
       message: err.message || "Something went wrong during upload",

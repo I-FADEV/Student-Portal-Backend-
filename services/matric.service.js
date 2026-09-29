@@ -26,41 +26,30 @@ const generateMatricNumberService = async ({
   const graduationYear = currentYear + yearsToGraduate;
   const gradYearSuffix = String(graduationYear).slice(-2); // Last 2 digits
 
-  // 3. Get or create counter for this level (shared across all departments)
-  let matricCounter = await MatricCounter.findOne({ level });
-
-  if (!matricCounter) {
-    // If manual counter provided, use it; otherwise start from 0
-    const initialCounter = manualCounter !== null ? manualCounter : 0;
-    matricCounter = await MatricCounter.create({
-      level,
-      counter: initialCounter,
-    });
-  }
-
-  // 4. Determine the counter value to use
-  let counterValue;
-  if (manualCounter !== null) {
-    // Admin manually overrode the counter
-    counterValue = manualCounter;
-    // Update the stored counter to this new value
-    matricCounter.counter = manualCounter;
-    await matricCounter.save();
-  } else {
-    // Auto-increment
-    counterValue = matricCounter.counter + 1;
-    matricCounter.counter = counterValue;
-    await matricCounter.save();
-  }
+  const AppError = require('../utils/appError');
+  level = Number(level);
+  if (!Number.isInteger(level) || level < department.minLevel || level > department.maxLevel || level % 100) throw new AppError('Invalid level for this department', 400);
+  if (manualCounter !== null && (!Number.isInteger(Number(manualCounter)) || Number(manualCounter) < 1 || Number(manualCounter) > 9999)) throw new AppError('Counter must be from 1 to 9999', 400);
+  // Initialize separately; the unique level index resolves concurrent initialization.
+  try { await MatricCounter.updateOne({ level }, { $setOnInsert: { counter: 0 } }, { upsert: true }); } catch(e) { if (e.code !== 11000) throw e; }
+  const counter = await MatricCounter.findOneAndUpdate(
+    { level, counter: { $lt: manualCounter !== null ? Number(manualCounter) : 9999 } },
+    manualCounter !== null ? { $set: { counter: Number(manualCounter) } } : { $inc: { counter: 1 } },
+    { new: true, runValidators: true }
+  );
+  if (!counter) throw new AppError('Counter already used, moved forward, or exhausted. Refresh and try again.', 409);
+  const counterValue = counter.counter;
 
   // 5. Format counter as 4-digit zero-padded
   const counterSuffix = String(counterValue).padStart(4, "0");
 
   // 6. Build matric number
-  const matricNumber = `i-FAT/${gradYearSuffix}/${department.abbreviation}/${counterSuffix}`;
+  const matricNumber = `I-FAT/${gradYearSuffix}/${department.abbreviation}/${counterSuffix}`;
 
   // 7. Append TF if transfer student
   const finalMatricNumber = isTransfer ? `${matricNumber}TF` : matricNumber;
+
+  await require("../models/matricReservation.model").create({ matricNumber: finalMatricNumber, department: department._id, level, createdBy: performedBy });
 
   // 8. Log the action
   await logAction({

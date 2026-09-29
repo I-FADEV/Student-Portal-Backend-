@@ -27,7 +27,7 @@ const courseSchema = new mongoose.Schema(
     semester: {
       type: String,
       required: true,
-      enum: ["First", "Second"],
+      enum: ["First", "Second", "Summer"],
     },
     session: {
       type: String,

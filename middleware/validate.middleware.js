@@ -1,5 +1,5 @@
 const validate = (schema) => (req, res, next) => {
-  const { error } = schema.validate(req.body, { abortEarly: false });
+  const { error, value } = schema.validate(req.body, { abortEarly: false });
   // abortEarly: false → returns ALL errors at once, not just the first one
 
   if (error) {
@@ -8,6 +8,7 @@ const validate = (schema) => (req, res, next) => {
     });
   }
 
+  req.body = value;
   next();
 };
 

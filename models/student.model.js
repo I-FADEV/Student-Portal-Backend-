@@ -15,7 +15,11 @@ const studentSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
+      select: false,
     },
+    tokenVersion: { type: Number, default: 0 },
+    canPostFeed: {type:Boolean,default:false},
+    status: { type: String, enum: ["active", "graduated", "archived"], default: "active" },
     role: {
       type: String,
       default: "student",
@@ -40,6 +44,7 @@ const studentSchema = new mongoose.Schema(
 studentSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
+  if (!this.isNew) this.tokenVersion = (this.tokenVersion || 0) + 1;
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 

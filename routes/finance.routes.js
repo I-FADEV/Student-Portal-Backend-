@@ -73,4 +73,17 @@ router.get(
   viewFinance,
 );
 
+router.get('/:id/payments', protect, roleCheck(['admin','student']), async(req,res,next) => {
+ try {
+  const Finance = require('../models/finance.model'); const Payment = require('../models/payment.model');
+  const record = await Finance.findById(req.params.id);
+  if (!record || (req.user.role === 'student' && String(record.student) !== req.user.userId)) return res.status(404).json({ error: 'Record not found' });
+  if (req.user.role === 'admin' && req.user.adminType !== 'finance_admin') return res.status(403).json({ error: 'Access denied' });
+  res.json({ data: await Payment.find({ finance: record.id }).sort({ createdAt:-1 }) });
+ } catch(e) { next(e); }
+});
+router.post('/payments/:id/reverse', protect, roleCheck(['admin'], ['finance_admin']), async(req,res,next) => {
+ try { res.json({ data: await require('../services/payment.service').reverse(req.params.id, req.body.reason, req.user.userId, req.ip) }); } catch(e) { next(e); }
+});
+router.post('/:id/reconcile',protect,roleCheck(['admin'],['finance_admin']),async(req,res,next)=>{try{res.json({data:await require('../services/reconciliation.service').reconcile(req.params.id,req.body,req.user)})}catch(e){next(e)}});
 module.exports = router;

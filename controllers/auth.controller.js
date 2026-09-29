@@ -26,6 +26,7 @@ const adminRegister = async (req, res, next) => {
 
     res.status(201).json({
       message: "Account created successfully!",
+      financeWarning,
       user,
       token,
       role,
@@ -73,7 +74,7 @@ const studentRegister = async (req, res, next) => {
   try {
     const { matricNumber, password, department, level, name, faculty } = req.body;
 
-    const { user, token } = await registerStudent({
+    const { user, token, financeWarning } = await registerStudent({
       matricNumber, password, department, level, name, faculty,
     });
 
@@ -82,8 +83,8 @@ const studentRegister = async (req, res, next) => {
       performedBy:     req.user.userId,
       action:          "CREATE",
       targetType:      "STUDENT",
-      targetId:        user._id,
-      affectedStudent: user._id,
+      targetId:        user.id,
+      affectedStudent: user.id,
       description:     `Student registered by TAC admin — ${name} (${matricNumber})`,
       changes: {
         before: null,
@@ -94,6 +95,7 @@ const studentRegister = async (req, res, next) => {
 
     res.status(201).json({
       message: "Account created successfully!",
+      financeWarning,
       user,
       token,
     });
@@ -147,8 +149,8 @@ const resetStudentPassword = async (req, res, next) => {
   try {
     const { studentId, newPassword } = req.body;
 
-    if (!studentId || !newPassword) {
-      return res.status(400).json({ error: "studentId and newPassword are required" });
+    if (!studentId || !newPassword || newPassword.length < 8) {
+      return res.status(400).json({ error: "Student and a password of at least 8 characters are required" });
     }
 
     const student = await Student.findById(studentId);

@@ -60,6 +60,7 @@ const addItemSchema = Joi.object({
 });
 
 const paymentSchema = Joi.object({
+  reference: Joi.string().pattern(/^[\w.-]{8,100}$/).required(),
   payments: Joi.array().items(
     Joi.object({
       itemLabel: Joi.string().required().messages({
